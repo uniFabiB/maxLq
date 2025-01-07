@@ -1,0 +1,12 @@
+#files
+*.o
+*.mod
+prog
+
+#directories
+fftwfunctionBackup/
+input/
+output/
+temp/
+.git/
+.vscode/

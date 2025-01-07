@@ -88,15 +88,15 @@ module function_ops
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
 
                Ux = Uvec(:,:,:,1)
-               CALL dealiasing(Ux)
+               !CALL dealiasing(Ux) ! commented out by fb
                Uvec(:,:,:,1) = Ux
 
                Uy = Uvec(:,:,:,2)
-               CALL dealiasing(Uy)
+               !CALL dealiasing(Uy) ! commented out by fb
                Uvec(:,:,:,2) = Uy
 
                Uz = Uvec(:,:,:,3)
-               CALL dealiasing(Uz)
+               !CALL dealiasing(Uz) ! commented out by fb
                Uvec(:,:,:,3) = Uz
 
                CALL div_free(Uvec)   
@@ -254,15 +254,15 @@ module function_ops
                   CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
 
                   Ux = Uvec(:,:,:,1)
-                  CALL dealiasing(Ux)
+                  !CALL dealiasing(Ux) ! commented out by fb
                   Uvec(:,:,:,1) = Ux
 
                   Uy = Uvec(:,:,:,2)
-                  CALL dealiasing(Uy)
+                  !CALL dealiasing(Uy) ! commented out by fb
                   Uvec(:,:,:,2) = Uy
 
                   Uz = Uvec(:,:,:,3)
-                  CALL dealiasing(Uz)
+                  !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
                   CALL div_free(Uvec)   
@@ -348,15 +348,15 @@ module function_ops
                   CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
 
                   Ux = Uvec(:,:,:,1)
-                  CALL dealiasing(Ux)
+                  !CALL dealiasing(Ux) ! commented out by fb
                   Uvec(:,:,:,1) = Ux
 
                   Uy = Uvec(:,:,:,2)
-                  CALL dealiasing(Uy)
+                  !CALL dealiasing(Uy) ! commented out by fb
                   Uvec(:,:,:,2) = Uy
 
                   Uz = Uvec(:,:,:,3)
-                  CALL dealiasing(Uz)
+                  !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
                   CALL div_free(Uvec)   
@@ -443,15 +443,15 @@ module function_ops
                   CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
 
                   Ux = Uvec(:,:,:,1)
-                  CALL dealiasing(Ux)
+                  !CALL dealiasing(Ux) ! commented out by fb
                   Uvec(:,:,:,1) = Ux
 
                   Uy = Uvec(:,:,:,2)
-                  CALL dealiasing(Uy)
+                  !CALL dealiasing(Uy) ! commented out by fb
                   Uvec(:,:,:,2) = Uy
 
                   Uz = Uvec(:,:,:,3)
-                  CALL dealiasing(Uz)
+                  !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
                   DO nn = 2,10                                     ! Newly added on March 23, 2017, add perturbation even for reading data
@@ -705,8 +705,11 @@ module function_ops
       !     p = Delta^{-1} (nabla u column nabla u^T)
       !       = Delta^{-1} (partial_i u_j partial_j u_i)
       !=========================================================
+
+
       function GradL2ForLq(U, q) result (V)
          use global_variables
+         use fftwfunction
          implicit none
          real(pr) :: q
          integer :: ii
@@ -714,7 +717,10 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: V
          real(pr), dimension(:,:,:), allocatable :: aux_u_q2, aux_u_q4, aux_p, aux, aux1, aux2, aux3, aux4
          real(pr), dimension(:,:,:), allocatable :: prefac_1, prefac_2, prefac_3
-         real(pr), dimension(:,:,:,:), allocatable :: aux_gradP, aux_DeltaU, aux3_vec, aux4_vec, aux5_vec, gradU1, gradU2, gradU3
+         real(pr), dimension(:,:,:,:), allocatable :: aux_gradP, aux_DeltaU, aux_uq2u, aux3_vec, aux4_vec, aux5_vec, aux6_vec, aux7_vec, gradU1, gradU2, gradU3
+
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: test, ftest
+
 
          allocate( aux(1:n(1),1:n(2),1:local_N) )
          allocate( aux1(1:n(1),1:n(2),1:local_N) )
@@ -723,12 +729,16 @@ module function_ops
          allocate( aux4(1:n(1),1:n(2),1:local_N) )
          allocate( aux_p(1:n(1),1:n(2),1:local_N) )
          allocate( aux_u_q2(1:n(1),1:n(2),1:local_N) )
+         
          allocate( aux_u_q4(1:n(1),1:n(2),1:local_N) )
          allocate( aux_gradP(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux_DeltaU(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( aux_uq2u(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux3_vec(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux4_vec(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux5_vec(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( aux6_vec(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( aux7_vec(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU1(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU2(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU3(1:n(1),1:n(2),1:local_N,1:3) )
@@ -736,10 +746,17 @@ module function_ops
          !print*, "GradL2ForLq"
 
          call calc_uk(u,q-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
+         if (toDealias) call dealias_scalar(aux_u_q2, q-2.0_pr)
+
          call calc_uk(u,q-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
+         if (toDealias) call dealias_scalar(aux_u_q4, q-4.0_pr)
+
 
          call calc_nablaUnablaUt(u, aux)                             ! aux = nabla u : nabla u^T
+         if (toDealias) call dealias_scalar(aux, 2.0_pr)
+
          call solve_poisson(aux, 1.0_pr, aux_p)                      ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux)
+         
          call gradient(aux_p, aux_gradP)                             ! aux_gradP = nabla p
 
          aux_DeltaU = u
@@ -748,10 +765,18 @@ module function_ops
          aux2 = 0.0_pr
          do ii = 1,3
             aux2(:,:,:) = aux2(:,:,:) +  u(:,:,:,ii)*(viscCoefficient*visc*aux_DeltaU(:,:,:,ii)-pressureCoefficient*aux_gradP(:,:,:,ii)) ! aux2 = u cdot (nu Delta u - nabla p)
-            aux3_vec(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux3_vec = |u|^{q-2}u
          end do
+         if (toDealias) call dealias_scalar(aux2, 2.0_pr)
+         
+         do ii = 1,3
+            aux_uq2u(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = |u|^{q-2}u
+            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux_uq2u(:,:,:,ii), 2.0_pr)
+         end do
+         
 
-         call divergence(aux3_vec, aux3)                             ! aux3 = nabla cdot (|u|^{q-2}u)
+
+
+         call divergence(aux_uq2u, aux3)                             ! aux3 = nabla cdot (|u|^{q-2}u)
          call solve_poisson(aux3, 1.0_pr, aux4)                      ! aux4 = Delta^{-1} nabla cdot (|u|^{q-2}u)
 
          call gradient(aux4, aux3_vec)                               ! aux3_vec = nabla (Delta^{-1} nabla cdot (|u|^{q-2}u))
@@ -761,21 +786,32 @@ module function_ops
          call gradient(u(:,:,:,3),gradU3)                            ! gradU3 = nabla u_3
 
          do ii= 1,3
-            ! aux4_vec = nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
-            aux4_vec(:,:,:,ii) = gradU1(:,:,:,ii)*aux3_vec(:,:,:,1)+gradU2(:,:,:,ii)*aux3_vec(:,:,:,2)+gradU3(:,:,:,ii)*aux3_vec(:,:,:,3) 
+            !aux5_vec = nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
+            aux5_vec(:,:,:,ii) = gradU1(:,:,:,ii)*aux3_vec(:,:,:,1)+gradU2(:,:,:,ii)*aux3_vec(:,:,:,2)+gradU3(:,:,:,ii)*aux3_vec(:,:,:,3)
          end do
+         if (toDealias) call dealias_vec(aux5_vec, 2.0_pr)
 
-         do ii= 1,3
-            aux5_vec(:,:,:,ii) = aux_u_q2(:,:,:) * u(:,:,:,ii)       ! aux5_vec = |u|^{q-2} u
-         end do
-         call laplacian(aux5_vec)                                    ! aux5_vec = Delta (|u|^{q-2} u)
+         aux7_vec= aux_uq2u                                          ! aux7_vec = |u|^{q-2} u
+         call laplacian(aux7_vec)                                    ! aux7_vec = Delta (|u|^{q-2} u)
+
+         aux2(:,:,:) = aux_u_q4(:,:,:) * aux2(:,:,:)                 ! aux2 = |u|^{q-4} (u cdot (nu Delta u - nabla p))
+         if (toDealias) call dealias_scalar(aux2, 2.0_pr)
 
          do ii = 1,3
-            v(:,:,:,ii) = (q-2.0_pr) * aux_u_q4(:,:,:) * aux2(:,:,:) * u(:,:,:,ii) &
-               - pressureCoefficient * aux_u_q2(:,:,:) * aux_gradP(:,:,:,ii) &
-               - pressureCoefficient * 2.0_pr * aux4_vec(:,:,:,ii) &
-               + viscCoefficient * visc * aux_u_q2(:,:,:) * aux_DeltaU(:,:,:,ii) &
-               + viscCoefficient * visc * aux5_vec(:,:,:,ii) 
+            aux3_vec(:,:,:,ii) = aux2(:,:,:) * u(:,:,:,ii)           ! aux3_vec = |u|^{q-4} (u cdot (nu Delta u - nabla p)) u
+            if (toDealias) call dealias_scalar(aux3_vec(:,:,:,ii), 2.0_pr)
+
+            aux4_vec(:,:,:,ii) = aux_u_q2(:,:,:)*aux_gradP(:,:,:,ii) ! aux4_vec = |u|^{q-2} nabla p
+            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux4_vec(:,:,:,ii), 2.0_pr)
+
+            aux6_vec(:,:,:,ii) = aux_u_q2(:,:,:)*aux_DeltaU(:,:,:,ii)! aux6_vec = |u|^{q-2} Delta u
+            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux6_vec(:,:,:,ii), 2.0_pr)
+
+            v(:,:,:,ii) = (q-2.0_pr) * aux3_vec(:,:,:,ii) &
+               - pressureCoefficient * aux4_vec(:,:,:,ii) &
+               - pressureCoefficient * 2.0_pr * aux5_vec(:,:,:,ii) &
+               + viscCoefficient * visc * aux6_vec(:,:,:,ii) &
+               + viscCoefficient * visc * aux7_vec(:,:,:,ii) 
 
             ! nabla^L2 R = (q-2)|u|^{q-4} (u cdot (nu Delta u - nabla p)) u
             !              - |u|^{q-2} nabla p
@@ -783,6 +819,12 @@ module function_ops
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
          end do
+
+         ! test !
+         test = dcmplx(v,0.0_pr)
+         call fftfwdv(test,ftest)
+         print*, "hi"
+         
 
       end function GradL2ForLq
 
@@ -798,7 +840,6 @@ module function_ops
       !=========================================================
       function calc_dLqdt(u, q) result (local_R)
          use global_variables
-         use mpi
          implicit none
          real(pr) :: q, R_1, R_2, R_3, local_R
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
@@ -806,35 +847,35 @@ module function_ops
 
          
          call calc_uk(u, q-2.0_pr, aux_u_q2)             ! aux_u_q2 = |u|^(q-2)
-         if (toDealias) call dealiasing_cutoff_real(aux_u_q2, q-2.0_pr)
+         if (toDealias) call dealias_scalar(aux_u_q2, q-2.0_pr)
 
          call calc_nablaModSquared(u, aux)               ! aux = |nabla u|^2
-         if (toDealias) call dealiasing_cutoff_real(aux, 2.0_pr)
+         if (toDealias) call dealias_scalar(aux, 2.0_pr)
          
          R_1 = - viscCoefficient * visc * inner_product(aux_u_q2, aux, "L2")
          !R_1  = - nu int |u|^(q-2) |nabla u|^2
 
 
          call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
-         if (toDealias) call dealiasing_cutoff_real(aux_u_q4, q-4.0_pr)
+         if (toDealias) call dealias_scalar(aux_u_q4, q-4.0_pr)
 
          call calc_ugraduugradu(u, aux)                       ! aux = u_i partial_j u_i u_k partial_j u_k
-         if (toDealias) call dealiasing_cutoff_real(aux, 4.0_pr)
+         if (toDealias) call dealias_scalar(aux, 4.0_pr)
 
          R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q4, aux, "L2")
          !R_2  = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k
 
 
          call calc_nablaUnablaUt(u, aux)                 ! aux = nabla u : nabla u^T
-         if (toDealias) call dealiasing_cutoff_real(aux, 2.0_pr)
+         if (toDealias) call dealias_scalar(aux, 2.0_pr)
          
          call solve_poisson(aux, 1.0_pr, aux_p)          ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux2)
 
          aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
-         if (toDealias) call dealiasing_cutoff_real(aux, 2.0_pr)
+         if (toDealias) call dealias_scalar(aux, 2.0_pr)
 
          call calc_uugradu(u, aux_uugradu)               ! aux_uugradu = u cdot (u cdot nabla) u
-         if (toDealias) call dealiasing_cutoff_real(aux_uugradu, 4.0_pr)
+         if (toDealias) call dealias_scalar(aux_uugradu, 4.0_pr)
 
          R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
          !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
@@ -1153,6 +1194,37 @@ module function_ops
       end subroutine calc_ugraduugradu
 
 
+
+      !=========================================================
+      ! Calculate f^k -> fk using maximal products of order 2
+      !=========================================================
+      recursive function calc_gk_order2(g,k) result (gk)
+         use global_variables
+         implicit none
+
+         real(pr), intent(in) :: k
+         real(pr), dimension(1:n(1),1:n(2),1:local_n), intent(in) :: g
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: gk
+         real(pr), dimension(:,:,:), allocatable :: g2, g_km2
+
+         if (k+mach_epsilon<0) then
+            print*, "ERROR calc_gk_order2 k+mach_epsilon<0, which should not happen"
+            gk = g(:,:,:)**(k)
+         elseif(k<2.0_pr+mach_epsilon) then
+            gk(:,:,:) = g(:,:,:)**(k)
+            if(toDealias) call dealias_scalar(gk,k)
+         else
+            allocate( g2(1:n(1),1:n(2),1:local_N) )
+            allocate( g_km2(1:n(1),1:n(2),1:local_N) )
+            g2(:,:,:) = g(:,:,:)*g(:,:,:)
+            if(toDealias) call dealias_scalar(g2,2.0_pr)
+            g_km2 = calc_gk_order2(g,k-2.0_pr)
+            gk = g2(:,:,:) * g_km2(:,:,:)
+            if(toDealias) call dealias_scalar(gk,2.0_pr)
+            deallocate( g2 )
+            deallocate( g_km2 )
+         end if
+      end function calc_gk_order2
       !=========================================================
       ! Calculate |u|^k -> uk
       !=========================================================
@@ -1164,8 +1236,22 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
          real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: uk
 
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: recursive_check
+         real(pr) :: checkRes
+         
          uk(:,:,:) = u(:,:,:,1)**2+u(:,:,:,2)**2+u(:,:,:,3)**2
-         uk(:,:,:) = uk(:,:,:)**(0.5_pr*k)
+         if(toDealias) call dealias_scalar(uk, 2.0_pr)
+         
+         !uk(:,:,:) = uk(:,:,:)**(0.5_pr*k)
+         recursive_check = uk(:,:,:)**(0.5_pr*k)
+         uk = calc_gk_order2(uk, 0.5_pr*k)
+
+         checkRes = inner_product(uk-recursive_check,uk-recursive_check, "L2")
+         if (checkRes < mach_epsilon) then
+            print*, "calc_uk check successful"
+         else
+            print*, "calc_uk check should be 0 but is ", checkRes, "k", k
+         end if
 
       end subroutine calc_uk
 
@@ -2167,111 +2253,34 @@ module function_ops
 
       END SUBROUTINE bilaplacian
 
-      !========================================
-      ! CALCULATE ADVECTION TERM
-      !======================================== 
-      SUBROUTINE advection(U, V, W)
-         USE global_variables        
-         IMPLICIT NONE
 
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: U, V
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(OUT) :: W
-
-         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: F
-         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradF
-
-         INTEGER :: ii
-
-         ALLOCATE( F(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( gradF(1:n(1),1:n(2),1:local_N,1:3) )
-
-         DO ii=1,3
-            F = V(:,:,:,ii)
-            CALL gradient(F, gradF) 
-            F = U(:,:,:,1)*gradF(:,:,:,1) + U(:,:,:,2)*gradF(:,:,:,2) + U(:,:,:,3)*gradF(:,:,:,3)
-            IF (toDealias) CALL dealiasing(F)
-            W(:,:,:,ii) = F
-         END DO
-
-         DEALLOCATE(F)
-         DEALLOCATE(gradF)
-      END SUBROUTINE advection
-
-      !===========================================
-      ! CALCULATE (nabla U)^T * V = W
-      !===========================================
-      SUBROUTINE stretching(U,V,W)
-         USE global_variables        
-         IMPLICIT NONE
-
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: U, V
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(OUT) :: W
-
-         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: F, G
-
-         INTEGER :: ii, jj
-
-         ALLOCATE( F(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( G(1:n(1),1:n(2),1:local_N) )
-
-         W = 0.0_pr
-
-         DO ii=1,3
-            DO jj=1,3
-               F = U(:,:,:,jj)
-               CALL derivative(F, ii)
-               G = F*V(:,:,:,jj)
-               IF (toDealias) CALL dealiasing(G) 
-               W(:,:,:,ii) = W(:,:,:,ii) + G
-            END DO 
-         END DO
-
-         DEALLOCATE(F)
-         DEALLOCATE(G)
-
-      END SUBROUTINE stretching 
 
       !==========================================
       ! PERFORM DEALIASING USING CUT OFF
       ! n_cut = 2/(p+1) n
       !==========================================
-      SUBROUTINE dealiasing_cutoff_complex(f, nonlinOrder)
+      subroutine dealias_scalar(g, nonlinOrder)
          USE global_variables
          USE fftwfunction
          IMPLICIT NONE
          
-         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: f
-         
-         real(pr), intent(in) :: nonlinOrder
-         INTEGER :: i1, i2, i3, ii
-         REAL(pr), DIMENSION(1:3) :: k, k_cut_deal
+         real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
+         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N), INTENT(INOUT) :: g
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: aux, faux
 
-         if( rank == 0 .and. nonlinOrder < 0) then
-            print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
-         end if
+         aux = dcmplx(g, 0.0_pr)
+         call fftfwd(aux,faux)
+         call dealiasing_cutoff_scalar_complex(faux,nonlinOrder)
+         call fftbwd(faux,aux)         
+         g = real(aux, pr)
 
-         k_cut_deal = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max >> |k| < k_cut = 2 pi n / (order + 1) 
-
-
-         DO ii = 1,3
-            DO i3 = 1,local_N
-               DO i2 = 1, n(2)
-                  DO i1 = 1, n(1)
-                     if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3,ii) = dcmplx(0.0_pr, 0.0_pr)
-                     if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3,ii) = dcmplx(0.0_pr, 0.0_pr)
-                     if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3,ii) = dcmplx(0.0_pr, 0.0_pr)
-                  END DO
-               END DO
-            END DO
-         END DO
-
-      END SUBROUTINE dealiasing_cutoff_complex
+      end subroutine dealias_scalar
 
       !==========================================
       ! PERFORM DEALIASING USING CUT OFF
       ! n_cut = 2/(p+1) n
       !==========================================
-      SUBROUTINE dealiasing_cutoff_real(u, nonlinOrder)
+      SUBROUTINE dealias_vec(u, nonlinOrder)
          USE global_variables
          USE fftwfunction
          IMPLICIT NONE
@@ -2279,62 +2288,60 @@ module function_ops
          real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
          real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: u
          complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: faux_scalar
+         integer :: ii
 
          aux = dcmplx(u, 0.0_pr)
-         
+      
          call fftfwdv(aux,faux)
 
-         call dealiasing_cutoff_complex(faux,nonlinOrder)
+         do ii = 1,3
+            faux_scalar = faux(:,:,:,ii)
+            call dealiasing_cutoff_scalar_complex(faux_scalar,nonlinOrder)
+            faux(:,:,:,ii) = faux_scalar
+         end do
 
          call fftbwdv(faux,aux)
          
-         u = REAL(aux, pr)
-         
-      END SUBROUTINE dealiasing_cutoff_real
-
+         u = real(aux, pr)
+      end subroutine dealias_vec
 
       !==========================================
-      ! PERFORM DEALIASING
+      ! PERFORM DEALIASING USING CUT OFF
+      ! n_cut = 2/(p+1) n
       !==========================================
-      SUBROUTINE dealiasing(f)
+      SUBROUTINE dealiasing_cutoff_scalar_complex(f, nonlinOrder)
          USE global_variables
          USE fftwfunction
          IMPLICIT NONE
-
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N), INTENT(INOUT) :: f
-
-         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
+         
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N), INTENT(INOUT) :: f
+         
+         real(pr), intent(in) :: nonlinOrder
          INTEGER :: i1, i2, i3
-         REAL(pr), DIMENSION(1:3) :: k
-         REAL(pr) :: mode 
+         REAL(pr), DIMENSION(1:3) :: k, k_cut_deal
 
-         ALLOCATE( aux(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
+         if( rank == 0 .and. nonlinOrder < 0) then
+            !print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
+         end if
 
-         aux = dcmplx(f, 0.0_pr)
-         CALL fftfwd(aux, faux)
+         print*, "nonlinOrder", nonlinOrder
+
+         k_cut_deal = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
+         kmax = min(max(k_cut_deal(1)/2.0_pr,0.0_pr),kmax)
 
          DO i3 = 1,local_N
-            DO i2 = 1,n(2)
-               DO i1 = 1,n(1)
-                  k(1) = K1(i1)
-                  k(2) = K2(i2)
-                  k(3) = K3(i3+local_k_offset)
-                  mode = SQRT(k(1)**2 + k(2)**2 + k(3)**2)
-                  faux(i1,i2,i3) = faux(i1,i2,i3)*EXP(-36.0_pr*(mode/Kcut)**36)
+            DO i2 = 1, n(2)
+               DO i1 = 1, n(1)
+                  if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
+                  if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
+                  if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
                END DO
             END DO
          END DO
 
-
-
-         CALL fftbwd(faux,aux)
-         f = REAL(aux,pr)
-
-         DEALLOCATE(aux)
-         DEALLOCATE(faux)
-
-      END SUBROUTINE dealiasing
+      END SUBROUTINE dealiasing_cutoff_scalar_complex
+   
 
       !=======================================================
       ! CALCULATE THE INNER PRODUCT BETWEEN TWO (scalar) FUNCTIONS

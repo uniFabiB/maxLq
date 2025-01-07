@@ -72,6 +72,7 @@ module optimization
          if (.true.) then
             do kappaTestLebesgueQIter=1, size(lebesgueQlist)
                lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
+               kmax = n(1)
                J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
                CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
                CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
@@ -758,8 +759,8 @@ module optimization
       CHARACTER(3) :: tempStr
 
 
-      complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
-      real(pr), dimension(1:n(1),1:n(2),1:local_n) :: testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ
+      !complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
+      !real(pr), dimension(1:n(1),1:n(2),1:local_n) :: testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ
          
 
 
@@ -777,8 +778,8 @@ module optimization
 
       !CALL kappa_test_pert(phi_pert, "divfree sine", 1.0_pr, 2.0_pr, 4.0_pr)
       !CALL kappa_test_pert(phi_pert, "random smooth", 1.0_pr, 2.0_pr, 4.0_pr)
-      !CALL kappa_test_pert(phi_pert, "random", 0.0_pr, 0.0_pr, 0.0_pr)
-      CALL kappa_test_pert(phi_pert, "load te0080", 0.0_pr, 0.0_pr, 0.0_pr)
+      CALL kappa_test_pert(phi_pert, "random", 0.0_pr, 0.0_pr, 0.0_pr)
+      !CALL kappa_test_pert(phi_pert, "load te0080", 0.0_pr, 0.0_pr, 0.0_pr)
           
       local_inner_prod = field_inner_product(gradJ, phi_pert, "L2")
 
@@ -797,18 +798,18 @@ module optimization
 
          !!! TEST REMOVE AFTERWARDS !!!
          ! output the fourier transforms of phi and phi_pert
-         testRemoveAfterwards = dcmplx(phi)
-         call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
-         testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
-         testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
-         testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
-         CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi.nc", "netCDF")
-         testRemoveAfterwards = dcmplx(phi_pert)
-         call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
-         testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
-         testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
-         testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
-         CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi_pert.nc", "netCDF")
+         !testRemoveAfterwards = dcmplx(phi)
+         !call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
+         !testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
+         !testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
+         !testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
+         !CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi.nc", "netCDF")
+         !testRemoveAfterwards = dcmplx(phi_pert)
+         !call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
+         !testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
+         !testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
+         !testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
+         !CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi_pert.nc", "netCDF")
          !!! TEST REMOVE AFTERWARDS !!!
 
 
@@ -827,6 +828,10 @@ module optimization
 
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
       END DO
+
+      if( rank == 0 ) then
+         print*, "kmax", kmax
+      end if
 
       DEALLOCATE(phi_pert)
       DEALLOCATE(phi_bar)

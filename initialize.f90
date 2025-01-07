@@ -34,7 +34,7 @@ SUBROUTINE initialize
 
   Kcut = 2.0_pr*PI*1.0_pr*REAL(n(1),pr)/3.0_pr   ! I changed on Oct 8, 2017
 
-  Kmax = Kcut/2.0_pr
+  Kmax = 0.0_pr ! will be determined later when dealising
 
   !--Set up wavenumbers
   DO i = 0, n(1)-1

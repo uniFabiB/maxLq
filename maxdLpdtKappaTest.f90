@@ -55,7 +55,7 @@
       ! Newly added in Jan 23
       !=============================================
       
-      RESOL   = 256
+      RESOL   = 64
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used
@@ -136,7 +136,6 @@
 ! Set parameters' values manually (not read from files).
 ! Newly added in Jan 23
 !=============================================
-!         RESOL    = 256
          K0_index = 0
 
 
@@ -149,7 +148,7 @@
 ! iguess 10 = load previous (not working)
 ! iguess 50 = Arnold-Beltrami-Childress, ...
 !=============================================
-         iguess = 0
+         iguess = 2
 
          NU_index = 2
          lambda1  = 5.0_pr  ! Newly added on Otc 05, 2017

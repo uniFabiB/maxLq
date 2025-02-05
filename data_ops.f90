@@ -192,7 +192,7 @@ MODULE data_ops
         !============================================================
         !          SAVE SPECTRAL DATA
         !============================================================
-        SUBROUTINE save_spectral_data(mydata)
+        SUBROUTINE save_spectral_data(mydata, name)
           USE global_variables
           IMPLICIT NONE
  
@@ -204,6 +204,7 @@ MODULE data_ops
           CHARACTER(2) :: E0txt
 !          CHARACTER(2) :: WEIGHTtxt
           CHARACTER(200) :: filename
+          CHARACTER(*) :: name
           INTEGER :: i
 
           WRITE(K0txt, '(i2.2)') K0_index
@@ -212,7 +213,8 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_spectrum.dat"
-          filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_spectrum.dat"   ! Newly added on May 8, 2017
+          !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_spectrum.dat"   ! Newly added on May 8, 2017
+          filename = HomeDir//name//"_spectrum.dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)/2
@@ -973,11 +975,12 @@ MODULE data_ops
           REAL(pr), INTENT(IN) :: eps, kappa, inner_prod, deltaJ
           INTEGER, INTENT(IN) :: myindex
           CHARACTER(len=*), INTENT(IN) :: fileName
-          CHARACTER(200) :: filePath
+          CHARACTER(99) :: filePath
           
 
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
           filePath = HomeDir//fileName
+          filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
              WRITE(10, "(6 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa", "LOG10(ABS(kappa - 1.0_pr))"
@@ -1112,9 +1115,9 @@ MODULE data_ops
           END SELECT
 
           IF (rank==0) THEN   
-             OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-             WRITE(10,*) msg_string
-             CLOSE(10)
+             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
+             !WRITE(10,*) msg_string
+             !CLOSE(10)
           END IF 
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 

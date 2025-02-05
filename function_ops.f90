@@ -30,6 +30,9 @@ module function_ops
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux_hat, Uy_hat, Uz_hat, Wx_hat, Wy_hat, Wz_hat
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
          real(pr), dimension(:,:,:,:), allocatable :: auxVec
+         
+         complex(pr), dimension(:,:,:,:), allocatable :: auxVec2, fauxVec2
+         real(pr) :: norm_k
 
                         !         ALLOCATE( aux(1:n(1),1:n(2),1:local_N) ) 
                         !         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
@@ -49,7 +52,6 @@ module function_ops
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
                !x = 2.0_pr*PI*REAL(n(1),pr)/16.0_pr     ! wave number from which on to cut fourier modes
                !call div_free(uvec)
-
 
             case (1)
                allocate( auxVec(1:n(1),1:n(2),1:local_N,1:3) )
@@ -77,10 +79,21 @@ module function_ops
 
 
             case (2)
-               call kappa_test_pert(uvec, "random", 0.0_pr, 0.0_pr, 0.0_pr)
+               !call kappa_test_pert(uvec, "save-random-field", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-a", 0.0_pr, 0.0_pr, 0.0_pr)
 
             case (3)
-               call kappa_test_pert(uvec, "random smooth", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-smooth-a", 0.0_pr, 0.0_pr, 0.0_pr)
+               
+            case (4)
+               call kappa_test_pert(uvec, "load-random-expSpec-a", 0.0_pr, 0.0_pr, 0.0_pr)
+            
+            case (5)
+               call kappa_test_pert(uvec, "load-random-polySpec-a", -2.0_pr, 2.0_pr, 0.0_pr)
+
+            case (6)
+               call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
+
 
             CASE (10)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
@@ -515,7 +528,8 @@ module function_ops
          complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
          complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N) :: auxScalar, fauxScalar
          CHARACTER(len=*), INTENT(IN) :: mytype
-         CHARACTER(200) :: filename
+         CHARACTER(100) :: filename
+         CHARACTER(4) :: auxStr
          REAL(pr), INTENT(IN) :: m1, m2, m3
          REAL(pr), DIMENSION(1:3) :: dx
          INTEGER :: ii, jj, kk, ll
@@ -529,7 +543,7 @@ module function_ops
          dx = 1.0/REAL(n, pr)
          SELECT CASE (mytype)
 
-            case ("load te0080")
+            case ("load-te0080")
                filename = "./input/FRT_N256E500T017_Uvec_fwdTE0080.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
 
@@ -549,7 +563,7 @@ module function_ops
                END DO               
                call div_free(phi_pert)
             
-            case ("divfree sine")
+            case ("divfree-sine")
                DO kk=1, local_N
                   DO jj=1, n(2)
                      DO ii=1, n(1)
@@ -565,7 +579,240 @@ module function_ops
                END DO
 
 
-            CASE ("random")
+            case ("load-random-a")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_a.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_a.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_a.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+
+            case ("load-random-b")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_b.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_b.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_b.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+
+            CASE ("load-random-smooth-a")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_a.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_a.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_a.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               do kk=1,3
+                  call dealias_scalar(phi_pert(:,:,:,kk), 3.0_pr)
+               end do
+               
+            CASE ("load-k-random-a")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_a.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_a.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_a.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*m1
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               
+               
+            CASE ("load-k-random-b")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_b.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_b.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_b.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*m1
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               
+            CASE ("load-random-polySpec-a")
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_a.nc"
+               elseif(n(1)==64) then
+                  filename = "./input/n0064_random_a.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_a.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_a.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*(10.0_pr**m2)*(norm_K/(real(n(1),pr)/4.0_pr))**(m1)
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               call div_free(phi_pert)
+               
+            CASE ("load-random-polySpec-b")
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_b.nc"
+               elseif(n(1)==64) then
+                  filename = "./input/n0064_random_b.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_b.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_b.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*(10.0_pr**m2)*(norm_K/(real(n(1),pr)/4.0_pr))**(m1)
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               call div_free(phi_pert)
+               
+            CASE ("load-random-expSpec-a")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_a.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_a.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_a.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(5.0_pr-(norm_K/(real(n(1),pr)/4.0_pr)))
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               
+            CASE ("load-random-expSpec-b")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_b.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_b.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_b.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(5.0_pr-(norm_K/(real(n(1),pr)/4.0_pr)))
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+
+            CASE ("load-random-smooth-b")
+               if(n(1)==64) then
+                  filename = "./input/n0064_random_b.nc"
+               elseif(n(1)==128) then
+                  filename = "./input/n0128_random_b.nc"
+               elseif(n(1)==256) then
+                  filename = "./input/n0256_random_b.nc"
+               endif
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               do kk=1,3
+                  call dealias_scalar(phi_pert(:,:,:,kk), 3.0_pr)
+               end do
+
+            CASE ("save-random")
                call random_number(phi_pert)
                phi_pert = 2.0_pr*phi_pert-1.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)
@@ -597,52 +844,21 @@ module function_ops
 
                phi_pert(:,:,:,:) = phi_pert(:,:,:,:)/normalization_const
 
-            CASE ("random smooth")
-
-               call random_number(phi_pert)
-               phi_pert = 2.0_pr*phi_pert-1.0_pr
-               aux = dcmplx(phi_pert, 0.0_pr)
-
-               CALL fftfwdv(aux, faux)
-               DO kk=1, local_N
-                  DO jj=1, n(2)
-                     DO ii=1, n(1)
-                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
-                        if (norm_k > 2.0_pr*Pi*real(n(1),pr)/4.0_pr) then
-                        !if (norm_k > 2.0_pr*Pi*real(n(1),pr)/16.0_pr) then
-                           do ll=1,3
-                              faux(ii,jj,kk,ll) = 0.0_pr
-                           end do
-                        ELSEIF (norm_K > MACH_EPSILON) THEN
-                           do ll=1,3
-                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)        ! can skip this
-                           end do
-                        ELSE
-                           do ll=1,3
-                              faux(ii,jj,kk,ll) = 0.0_pr
-                           end do
-                        END IF
-                     END DO
-                  END DO
-               END DO
-
-               CALL fftbwdv(faux, aux)
-
-               phi_pert = real(aux,pr)
-               call div_free(phi_pert)
-
-               ! normalization
-               l2NormTestLoc = field_inner_product(phi_pert,phi_pert,"L2")    !!!! SOMEHOW NOT WORKING: L2NormTest is not what inn_prod was in the calculation
-               !print*, "l2NormTestLoc", l2NormTestLoc         
-               CALL MPI_ALLREDUCE(l2NormTestLoc, l2NormTestGlob, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-               normalization_const = 100.0_pr*sum(l2NormTestGlob)
-
-               !if (rank == 0) then
-               !   print*, normalization_const
-               !end if
+               if (n(1)<100) then
+                  WRITE(auxStr, '(i2)') n(1)
+                  auxStr = '00'//auxStr(1:2)
+               elseif (n(1)<1000) then
+                  WRITE(auxStr, '(i3)') n(1)
+                  auxStr = '0'//auxStr(1:3)
+               else
+                  WRITE(auxStr, '(i4)') n(1)
+               end if
+               filename = HomeDir//"n"//auxStr//"_random.nc"
+               CALL save_field_R3toR3_ncdf(phi_pert(:,:,:,1), phi_pert(:,:,:,2), phi_pert(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
 
 
-               phi_pert(:,:,:,:) = phi_pert(:,:,:,:)/normalization_const
+
+
 
 
                !aux = dcmplx(phi_pert, 0.0_pr)
@@ -687,7 +903,26 @@ module function_ops
                                  !CALL vort2vel(w_pert, phi_pert)
    
       END SUBROUTINE kappa_test_pert
-
+      
+      
+      !=========================================================
+      ! Calculate and save spectrum of a vectorfield
+      !=========================================================
+      subroutine calculateSaveSpectrum(vec, fileName)
+         use global_variables
+         use fftwfunction
+         use data_ops
+         use mpi
+         implicit none
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: vec
+         CHARACTER(len=*), INTENT(IN) :: fileName
+         real(pr), dimension(1:n(1)/2,1:2) :: spectrum
+         
+        CALL calculate_spectral_data(vec, Spectrum)
+        IF (rank==0) THEN
+	   CALL save_spectral_data(Spectrum, fileName)
+        end if
+      end subroutine calculateSaveSpectrum
 
 
       !=========================================================
@@ -746,14 +981,11 @@ module function_ops
          !print*, "GradL2ForLq"
 
          call calc_uk(u,q-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
-         if (toDealias) call dealias_scalar(aux_u_q2, q-2.0_pr)
-
+         
          call calc_uk(u,q-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
-         if (toDealias) call dealias_scalar(aux_u_q4, q-4.0_pr)
-
+         
 
          call calc_nablaUnablaUt(u, aux)                             ! aux = nabla u : nabla u^T
-         if (toDealias) call dealias_scalar(aux, 2.0_pr)
 
          call solve_poisson(aux, 1.0_pr, aux_p)                      ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux)
          
@@ -762,11 +994,17 @@ module function_ops
          aux_DeltaU = u
          call laplacian(aux_DeltaU)                                  ! aux_DeltaU = Delta u
          
+         aux1 = 0.0_pr
          aux2 = 0.0_pr
          do ii = 1,3
-            aux2(:,:,:) = aux2(:,:,:) +  u(:,:,:,ii)*(viscCoefficient*visc*aux_DeltaU(:,:,:,ii)-pressureCoefficient*aux_gradP(:,:,:,ii)) ! aux2 = u cdot (nu Delta u - nabla p)
+            !aux2(:,:,:) = aux2(:,:,:) + u(:,:,:,ii)*(viscCoefficient*visc*aux_DeltaU(:,:,:,ii)-pressureCoefficient*aux_gradP(:,:,:,ii)) ! aux2 = u cdot (nu Delta u - nabla p)
+            aux1(:,:,:) = aux1(:,:,:) + u(:,:,:,ii)*aux_DeltaU(:,:,:,ii)   ! aux1 = u cdot Delta u
+            aux2(:,:,:) = aux2(:,:,:) + u(:,:,:,ii)*aux_gradP(:,:,:,ii)    ! aux2 = u cdot grad p
          end do
+         if (toDealias) call dealias_scalar(aux1, 2.0_pr)
          if (toDealias) call dealias_scalar(aux2, 2.0_pr)
+
+         aux2(:,:,:) = viscCoefficient*visc*aux1(:,:,:) - pressureCoefficient*aux2(:,:,:) ! aux2 = u cdot (nu Delta u - nabla p)
          
          do ii = 1,3
             aux_uq2u(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = |u|^{q-2}u
@@ -788,8 +1026,8 @@ module function_ops
          do ii= 1,3
             !aux5_vec = nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
             aux5_vec(:,:,:,ii) = gradU1(:,:,:,ii)*aux3_vec(:,:,:,1)+gradU2(:,:,:,ii)*aux3_vec(:,:,:,2)+gradU3(:,:,:,ii)*aux3_vec(:,:,:,3)
+            if (toDealias) call dealias_scalar(aux5_vec(:,:,:,ii), 2.0_pr)
          end do
-         if (toDealias) call dealias_vec(aux5_vec, 2.0_pr)
 
          aux7_vec= aux_uq2u                                          ! aux7_vec = |u|^{q-2} u
          call laplacian(aux7_vec)                                    ! aux7_vec = Delta (|u|^{q-2} u)
@@ -819,11 +1057,6 @@ module function_ops
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
          end do
-
-         ! test !
-         test = dcmplx(v,0.0_pr)
-         call fftfwdv(test,ftest)
-         print*, "hi"
          
 
       end function GradL2ForLq
@@ -844,38 +1077,33 @@ module function_ops
          real(pr) :: q, R_1, R_2, R_3, local_R
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
          real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_u_q4, aux_p, aux_uugradu, aux
-
          
          call calc_uk(u, q-2.0_pr, aux_u_q2)             ! aux_u_q2 = |u|^(q-2)
-         if (toDealias) call dealias_scalar(aux_u_q2, q-2.0_pr)
-
+         
          call calc_nablaModSquared(u, aux)               ! aux = |nabla u|^2
-         if (toDealias) call dealias_scalar(aux, 2.0_pr)
+         
          
          R_1 = - viscCoefficient * visc * inner_product(aux_u_q2, aux, "L2")
          !R_1  = - nu int |u|^(q-2) |nabla u|^2
 
 
          call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
-         if (toDealias) call dealias_scalar(aux_u_q4, q-4.0_pr)
-
-         call calc_ugraduugradu(u, aux)                       ! aux = u_i partial_j u_i u_k partial_j u_k
-         if (toDealias) call dealias_scalar(aux, 4.0_pr)
+         
+         call calc_ugraduugradu(u, aux)                  ! aux = u_i partial_j u_i u_k partial_j u_k
+         
 
          R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q4, aux, "L2")
          !R_2  = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k
 
 
          call calc_nablaUnablaUt(u, aux)                 ! aux = nabla u : nabla u^T
-         if (toDealias) call dealias_scalar(aux, 2.0_pr)
-         
+
          call solve_poisson(aux, 1.0_pr, aux_p)          ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux2)
 
          aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
          if (toDealias) call dealias_scalar(aux, 2.0_pr)
 
          call calc_uugradu(u, aux_uugradu)               ! aux_uugradu = u cdot (u cdot nabla) u
-         if (toDealias) call dealias_scalar(aux_uugradu, 4.0_pr)
 
          R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
          !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
@@ -1057,6 +1285,7 @@ module function_ops
                nablaUnablaUt(:,:,:) = nablaUnablaUt(:,:,:) + gradU(:,:,:,jj,ii)*gradU(:,:,:,ii,jj)
             end do
          end do
+         if(toDealias) call dealias_scalar(nablaUnablaUt,2.0_pr)
 
          deallocate(uComp)
          deallocate(gradComp)
@@ -1128,24 +1357,46 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: uugradu
          real(pr), dimension(:,:,:), allocatable :: uComponent
          real(pr), dimension(:,:,:,:), allocatable :: gradUComponent
+         real(pr), dimension(:,:,:,:), allocatable :: aux
+         real(pr), dimension(:,:,:,:,:), allocatable :: gradU         ! gradU(:,:,:,ii,jj) = partial_j u_i
      
          integer :: ii, jj
 
          allocate( uComponent(1:n(1),1:n(2),1:local_N) )
          allocate( gradUComponent(1:n(1),1:n(2),1:local_N,1:3) )
-
-         uugradu = 0.0_pr
+         allocate( gradU(1:n(1),1:n(2),1:local_N,1:3,1:3) )
 
          do ii=1,3
             uComponent = u(:,:,:,ii)
             call gradient(uComponent, gradUComponent)
             do jj=1,3
-               uugradu(:,:,:) = uugradu(:,:,:) + u(:,:,:,ii)*u(:,:,:,jj)*gradUComponent(:,:,:,jj)
+               gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
+               !uugradu(:,:,:) = uugradu(:,:,:) + u(:,:,:,ii)*u(:,:,:,jj)*gradUComponent(:,:,:,jj)
             end do
          end do
 
          deallocate(uComponent)
          deallocate(gradUComponent)
+         allocate( aux(1:n(1),1:n(2),1:local_N,1:3) )
+
+         aux = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               aux(:,:,:,jj) = aux(:,:,:,jj) + u(:,:,:,ii)*gradU(:,:,:,ii,jj)
+            end do
+         end do
+
+         do ii=1,3
+            if(toDealias) call dealias_scalar(aux(:,:,:,ii),2.0_pr)
+         end do
+         
+
+         uugradu = 0.0_pr
+         do jj=1,3
+            uugradu(:,:,:) = uugradu(:,:,:) + u(:,:,:,jj)*aux(:,:,:,jj)
+         end do
+         if(toDealias) call dealias_scalar(uugradu,2.0_pr)
+
 
       end subroutine calc_uugradu
 
@@ -1161,13 +1412,14 @@ module function_ops
          real(pr), dimension(:,:,:,:,:), allocatable :: gradU         ! gradU(:,:,:,ii,jj) = partial_j u_i
          real(pr), dimension(:,:,:), allocatable :: uComponent
          real(pr), dimension(:,:,:,:), allocatable :: gradUComponent
+         real(pr), dimension(:,:,:,:), allocatable :: uGradu
      
          integer :: ii, jj, kk
 
          allocate( uComponent(1:n(1),1:n(2),1:local_N) )
          allocate( gradUComponent(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU(1:n(1),1:n(2),1:local_n,1:3,1:3) )
-
+         allocate( uGradu(1:n(1),1:n(2),1:local_n,1:3) )
 
          do ii=1,3
             uComponent(:,:,:) = u(:,:,:,ii)
@@ -1177,19 +1429,30 @@ module function_ops
             end do
          end do
 
-         deallocate(uComponent)
-         deallocate(gradUComponent)
-
-         ugradu2 = 0.0_pr
+         uGradu = 0.0_pr
          do ii=1,3
             do jj=1,3
-               do kk=1,3
-                  ugradu2(:,:,:) = ugradu2(:,:,:) + u(:,:,:,ii)*gradU(:,:,:,ii,jj)*u(:,:,:,kk)*gradU(:,:,:,kk,jj)
-               end do
+               uGradu(:,:,:,jj) = uGradu(:,:,:,jj) + u(:,:,:,ii)*gradU(:,:,:,ii,jj)
             end do
          end do
 
-         deallocate(gradU)
+         do jj=1,3
+            if(toDealias) call dealias_scalar(uGradu(:,:,:,jj),2.0_pr)
+         end do
+
+
+
+         uGradu2 = 0.0_pr
+         do jj=1,3
+            uGradu2(:,:,:) = uGradu2(:,:,:) + uGradu(:,:,:,jj)*uGradu(:,:,:,jj)
+         end do
+         if(toDealias) call dealias_scalar(uGradu2,2.0_pr)
+         
+
+         deallocate( uComponent )
+         deallocate( gradUComponent )
+         deallocate( gradU )
+         deallocate( uGradu )
 
       end subroutine calc_ugraduugradu
 
@@ -1206,24 +1469,35 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_n), intent(in) :: g
          real(pr), dimension(1:n(1),1:n(2),1:local_n) :: gk
          real(pr), dimension(:,:,:), allocatable :: g2, g_km2
+         integer :: ii,jj,kk
 
          if (k+mach_epsilon<0) then
-            print*, "ERROR calc_gk_order2 k+mach_epsilon<0, which should not happen"
-            gk = g(:,:,:)**(k)
-         elseif(k<2.0_pr+mach_epsilon) then
+            if(rank == 0 .and. abs(lebesgueQ-2.0_pr)>mach_epsilon) then
+               print*, "warning (in calc_gk_order2) calculating g^{-|x|}, setting y/0 terms to 0"
+            end if
+            where (abs(g) < mach_epsilon)      ! uk can be negative because of rounding errors -> results in NaN values
+               gk = 0.0_pr
+            elsewhere
+               gk = g**(k)
+            end where
+            !gk(:,:,:) = 0.0_pr
+         elseif (k+mach_epsilon < 2.0_pr) then
             gk(:,:,:) = g(:,:,:)**(k)
             if(toDealias) call dealias_scalar(gk,k)
          else
             allocate( g2(1:n(1),1:n(2),1:local_N) )
             allocate( g_km2(1:n(1),1:n(2),1:local_N) )
+
             g2(:,:,:) = g(:,:,:)*g(:,:,:)
             if(toDealias) call dealias_scalar(g2,2.0_pr)
             g_km2 = calc_gk_order2(g,k-2.0_pr)
-            gk = g2(:,:,:) * g_km2(:,:,:)
+            gk(:,:,:) = g2(:,:,:) * g_km2(:,:,:)
             if(toDealias) call dealias_scalar(gk,2.0_pr)
+            
             deallocate( g2 )
             deallocate( g_km2 )
          end if
+         
       end function calc_gk_order2
       !=========================================================
       ! Calculate |u|^k -> uk
@@ -1234,24 +1508,18 @@ module function_ops
 
          real(pr), intent(in) :: k
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
-         real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: uk
-
-         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: recursive_check
-         real(pr) :: checkRes
+         real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: uk         
          
          uk(:,:,:) = u(:,:,:,1)**2+u(:,:,:,2)**2+u(:,:,:,3)**2
          if(toDealias) call dealias_scalar(uk, 2.0_pr)
-         
-         !uk(:,:,:) = uk(:,:,:)**(0.5_pr*k)
-         recursive_check = uk(:,:,:)**(0.5_pr*k)
-         uk = calc_gk_order2(uk, 0.5_pr*k)
 
-         checkRes = inner_product(uk-recursive_check,uk-recursive_check, "L2")
-         if (checkRes < mach_epsilon) then
-            print*, "calc_uk check successful"
-         else
-            print*, "calc_uk check should be 0 but is ", checkRes, "k", k
-         end if
+         where (uk <= 0)      ! uk can be negative because of rounding errors -> results in NaN values
+            uk = 0.0_pr
+         elsewhere
+            uk = uk**(0.5_pr)
+         end where
+         
+         uk = calc_gk_order2(uk, k)
 
       end subroutine calc_uk
 
@@ -1277,9 +1545,10 @@ module function_ops
             uTemp(:,:,:) = u(:,:,:,ii)
             CALL gradient(uTemp, gradUTemp)
             do jj=1,3
-               nablaU2(:,:,:) = nablaU2(:,:,:) + gradUTemp(:,:,:,jj)**2
+               nablaU2(:,:,:) = nablaU2(:,:,:) + gradUTemp(:,:,:,jj)*gradUTemp(:,:,:,jj)
             end do
          end do
+         if(toDealias) call dealias_scalar(nablaU2,2.0_pr)
 
       end subroutine calc_nablaModSquared
 
@@ -1463,8 +1732,8 @@ module function_ops
 
 
          IF (rank==0) THEN
-            CALL save_spectral_data(Spectrum)
-            CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
+            !CALL save_spectral_data(Spectrum,"12345678")
+            !CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
          END IF
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
@@ -1890,6 +2159,39 @@ module function_ops
 
       END SUBROUTINE Fix_E0
 
+
+      !======================================================
+      ! FIX L^q NORM (or equiv the (L^q)^q value) OF A GIVEN VELOCITY FIELD
+      !======================================================
+      SUBROUTINE Fix_Lq(myfield, targetLq)
+         !           use, intrinsic :: iso_c_binding                                          ! Commented on May 1st, not sure necessary?
+      USE global_variables
+      use fftwfunction
+      USE mpi
+      IMPLICIT NONE
+               !           include 'fftw3-mpi.f03'
+
+      REAL(pr), DIMENSION(1:n(1), 1:n(2), 1:local_N,1:3), INTENT(INOUT) :: myfield
+      real(pr), dimension(1:n(1), 1:n(2), 1:local_n) :: u_qHalfs ! calc u^(q/2), potentially using dealiasing
+      real(pr), intent(in) :: targetLq
+
+      
+      REAL(pr) :: local_Lqq, global_Lqq, global_Lq
+      REAL(pr) :: factor
+      INTEGER :: ii
+
+      call calc_uk(myfield, lebesgueQ/2.0_pr, u_qHalfs)        ! u_qHalfs = |u|^(q/2)
+
+      local_Lqq = inner_product(u_qHalfs, u_qHalfs, "L2")                ! local int |u|^q
+      CALL MPI_ALLREDUCE(local_Lqq, global_Lqq, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+
+      global_Lq = global_Lqq**(1.0_pr/lebesgueQ)
+      factor = targetLq/global_Lq
+
+      myfield(:,:,:,:) = factor*myfield(:,:,:,:)
+
+      END SUBROUTINE Fix_Lq
+
       !==============================================================
       ! Calculates the vorticity w in physical space given
       ! velocity u in physical space
@@ -2267,11 +2569,14 @@ module function_ops
          real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
          real(pr), DIMENSION(1:n(1),1:n(2),1:local_N), INTENT(INOUT) :: g
          complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: aux, faux
+         logical :: err
+
+         integer :: ii,jj,kk
 
          aux = dcmplx(g, 0.0_pr)
          call fftfwd(aux,faux)
          call dealiasing_cutoff_scalar_complex(faux,nonlinOrder)
-         call fftbwd(faux,aux)         
+         call fftbwd(faux,aux)
          g = real(aux, pr)
 
       end subroutine dealias_scalar
@@ -2280,31 +2585,31 @@ module function_ops
       ! PERFORM DEALIASING USING CUT OFF
       ! n_cut = 2/(p+1) n
       !==========================================
-      SUBROUTINE dealias_vec(u, nonlinOrder)
-         USE global_variables
-         USE fftwfunction
-         IMPLICIT NONE
-         
-         real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
-         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: u
-         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
-         complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: faux_scalar
-         integer :: ii
-
-         aux = dcmplx(u, 0.0_pr)
-      
-         call fftfwdv(aux,faux)
-
-         do ii = 1,3
-            faux_scalar = faux(:,:,:,ii)
-            call dealiasing_cutoff_scalar_complex(faux_scalar,nonlinOrder)
-            faux(:,:,:,ii) = faux_scalar
-         end do
-
-         call fftbwdv(faux,aux)
-         
-         u = real(aux, pr)
-      end subroutine dealias_vec
+      !SUBROUTINE dealias_vec(u, nonlinOrder)
+      !   USE global_variables
+      !   USE fftwfunction
+      !   IMPLICIT NONE
+      !   
+      !   real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
+      !   real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: u
+      !   complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
+      !   complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: faux_scalar
+      !   integer :: ii
+      !
+      !   aux = dcmplx(u, 0.0_pr)
+      !
+      !   call fftfwdv(aux,faux)
+      !
+      !   do ii = 1,3
+      !      faux_scalar = faux(:,:,:,ii)
+      !      call dealiasing_cutoff_scalar_complex(faux_scalar,nonlinOrder)
+      !      faux(:,:,:,ii) = faux_scalar
+      !   end do
+      !
+      !   call fftbwdv(faux,aux)
+      !   
+      !   u = real(aux, pr)
+      !end subroutine dealias_vec
 
       !==========================================
       ! PERFORM DEALIASING USING CUT OFF
@@ -2320,22 +2625,39 @@ module function_ops
          real(pr), intent(in) :: nonlinOrder
          INTEGER :: i1, i2, i3
          REAL(pr), DIMENSION(1:3) :: k, k_cut_deal
+         real(pr) :: mode, k_cut_deal_2
 
          if( rank == 0 .and. nonlinOrder < 0) then
             !print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
          end if
 
-         print*, "nonlinOrder", nonlinOrder
+         !print*, "nonlinOrder", nonlinOrder
 
          k_cut_deal = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
-         kmax = min(max(k_cut_deal(1)/2.0_pr,0.0_pr),kmax)
-
+         !k_cut_deal = 1.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
+         k_cut_deal_2 = k_cut_deal(1)
+         if(nonlinOrder>testNonlinOrder)then
+            testNonlinOrder = nonlinOrder
+         end if
+         if(nonlinOrder > 1.0_pr) then
+            if (kmax < 0.0_pr) then
+               kmax = k_cut_deal(1)/2.0_pr
+            else
+               kmax = max(kmax, k_cut_deal(1)/2.0_pr)
+            end if
+         end if
+         
+         
          DO i3 = 1,local_N
             DO i2 = 1, n(2)
                DO i1 = 1, n(1)
-                  if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
-                  if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
-                  if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)
+                  mode = SQRT(K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2)
+                  if(mode>k_cut_deal_2) f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
+                  !if ( (abs(K1(i1)) > k_cut_deal_2) .or. (abs(K2(i2)) > k_cut_deal_2) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal_2))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
+                  !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal_2)**36)
+                  !if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
+                  !if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
+                  !if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                END DO
             END DO
          END DO

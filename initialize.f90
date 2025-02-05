@@ -35,6 +35,10 @@ SUBROUTINE initialize
   Kcut = 2.0_pr*PI*1.0_pr*REAL(n(1),pr)/3.0_pr   ! I changed on Oct 8, 2017
 
   Kmax = 0.0_pr ! will be determined later when dealising
+  testNonlinOrder = 0.0_pr
+  if (rank == 0) then
+      print*, "kmax_initially", PI*real(n(1),pr)
+  end if
 
   !--Set up wavenumbers
   DO i = 0, n(1)-1
@@ -65,16 +69,16 @@ SUBROUTINE initialize
   ! K3(n(3)/2+1) = 0
 
   kappaTest = .true.
-  toDealias = .false.
+  toDealias = .true.
   add_pert = .FALSE.
   save_diag_NS = .FALSE.
   save_data_NS = .FALSE.
   save_diag_lineMin = .FALSE.
   save_data_lineMin = .FALSE.
-  save_diag_Constr = .TRUE.
+  save_diag_Constr = .false.
   save_data_Constr = .FALSE.
-  save_diag_Optim = .TRUE.
-  save_data_Optim = .TRUE.
+  save_diag_Optim = .false.
+  save_data_Optim = .false.
  
   IF (n(1)<256) THEN
      parallel_data = .FALSE.

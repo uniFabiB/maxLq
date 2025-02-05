@@ -39,7 +39,8 @@
 
       
       E0List = (/20/)      !(/1, 10, 20, 30, 40, 50, 60/)
-      lebesgueQlist = (/2.0, 3.0, 4.0, 5.0, 10.0/)
+      lebesgueQlist = (/2.0, 4.0, 5.0, 10.0, 30.0/)
+      !lebesgueQlist = (/3.0/)
       
       !=============================================
       ! MPI Initialization; and fftw mpi initialization
@@ -55,7 +56,7 @@
       ! Newly added in Jan 23
       !=============================================
       
-      RESOL   = 64
+      RESOL   = 32
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used
@@ -143,12 +144,15 @@
 ! Initial Data
 ! iguess 0 = load FRT_N256E500T017_Uvec_fwdTE0220
 ! iguess 1 = load sines
-! iguess 2 = random
-! iguess 3 = random smooth
+! iguess 2 = load random a
+! iguess 3 = load random smooth a
+! iguess 4 = load random expSpec a
+! iguess 5 = load random polySpec a
+! iguess 6 = load random k a
 ! iguess 10 = load previous (not working)
 ! iguess 50 = Arnold-Beltrami-Childress, ...
 !=============================================
-         iguess = 2
+         iguess = 5
 
          NU_index = 2
          lambda1  = 5.0_pr  ! Newly added on Otc 05, 2017

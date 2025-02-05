@@ -41,7 +41,7 @@ MODULE global_variables
   INTEGER, DIMENSION(3), SAVE :: n                 ! Newly Added March 18, 2017
   INTEGER, SAVE :: n_dim
   INTEGER, SAVE :: K0_index, E0_index, NU_index, iguess, ConsType
-  REAL(pr), SAVE :: E0, K0, PI, visc, lambda2, lambda1, alpha0, dV, Kcut, Kmax, lebesgueQ
+  REAL(pr), SAVE :: E0, K0, PI, visc, lambda2, lambda1, alpha0, dV, Kcut, Kmax, lebesgueQ, testNonlinOrder
   real(pr), dimension(:), allocatable, save :: lebesgueQlist
   !--NOTE: Kcut = cut frequency used for dealiasing. 
   !-       Kmax = maximal frequency present in solution.

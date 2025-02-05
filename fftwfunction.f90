@@ -71,6 +71,12 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
 
             fu(:,:,:) = tmppointer(:,:,:)
 
+
+
+            if (isnan(real(fu(1,1,1)))) then
+                  print*, "nan in fftwfunction"
+            end if
+
             call mpi_barrier(mpi_comm_world, statinfo)
 
       END SUBROUTINE fftfwd

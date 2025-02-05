@@ -27,11 +27,13 @@ module optimization
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
+         
+         
 
          ell2 = lambda2
          ell1 = lambda1
 
-         CALL Fix_Constr(Uvec, FixConstr_flag)
+         !CALL Fix_Constr(Uvec, FixConstr_flag)		!!!! TODO
          IF (FixConstr_flag /= 0) THEN
             CALL optim_msg_handle(13)
             RETURN
@@ -42,6 +44,8 @@ module optimization
          local_field_L2norm = Energy(Uvec)
          CALL MPI_ALLREDUCE(local_field_L2norm, K, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
+
+
          CALL divergence(Uvec, f_scalar)
          local_scalar_L2norm = inner_product(f_scalar, f_scalar, "L2")
          CALL MPI_ALLREDUCE(local_scalar_L2norm, divU_L2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo) 
@@ -49,7 +53,10 @@ module optimization
          local_field_L2norm = Enstrophy(Uvec)
          CALL MPI_ALLREDUCE(local_field_L2norm, E, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
+
          dLqdt = calc_dLqdt(Uvec, lebesgueQ)
+         
+
 
          J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
          J1 = 1.5_pr*J0
@@ -72,7 +79,7 @@ module optimization
          if (.true.) then
             do kappaTestLebesgueQIter=1, size(lebesgueQlist)
                lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
-               kmax = n(1)
+               kmax = -PI*real(n(1),pr)
                J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
                CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
                CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
@@ -744,7 +751,7 @@ module optimization
       IMPLICIT NONE
 
       !REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
-      REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: phi
+      REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: gradJ
       !REAL(pr), INTENT(IN) :: J0
       REAL(pr), INTENT(INOUT) :: J0
@@ -757,10 +764,13 @@ module optimization
       CHARACTER(2) :: K0txt, E0txt, IGtxt
       CHARACTER(4) :: strLebesgueQ
       CHARACTER(3) :: tempStr
+      character(50) :: phiPertText		! load random b/divfree sine/load te0080/...
+      real(pr), dimension(1:n(1),1:n(2),1:local_N) :: testScalarField
+      real(pr) :: testScalar
 
 
-      !complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
-      !real(pr), dimension(1:n(1),1:n(2),1:local_n) :: testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ
+      complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
+      real(pr), dimension(1:n(1),1:n(2),1:local_n) :: testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ
          
 
 
@@ -768,7 +778,16 @@ module optimization
          print*, "kappaTest"
          print*, "q", lebesgueQ
       END If
+      WRITE(tempStr,'(F3.1)') lebesgueQ-int(lebesgueQ)              ! might result in rounding errors for 1.999999999999
+      WRITE(strLebesgueQ,'(I2.2,a2)') int(lebesgueQ), tempStr(2:)
       
+   
+      IF (rank==0) THEN
+         print*, "warning, fixing lq norm of uvec"
+      END If
+      call Fix_Lq(uvec, 1.0_pr)
+
+
       WRITE(K0txt,'(i2.2)') K0_index
       WRITE(E0txt,'(i2.2)') E0_index
       WRITE(IGtxt,'(i2.2)') iguess
@@ -776,18 +795,41 @@ module optimization
       ALLOCATE( phi_bar(1:n(1),1:n(2),1:local_N,1:3) )
 
 
-      !CALL kappa_test_pert(phi_pert, "divfree sine", 1.0_pr, 2.0_pr, 4.0_pr)
-      !CALL kappa_test_pert(phi_pert, "random smooth", 1.0_pr, 2.0_pr, 4.0_pr)
-      CALL kappa_test_pert(phi_pert, "random", 0.0_pr, 0.0_pr, 0.0_pr)
-      !CALL kappa_test_pert(phi_pert, "load te0080", 0.0_pr, 0.0_pr, 0.0_pr)
-          
+
+
+      !phiPertText = "divfree-sine"
+      !phiPertText = "load-random-b"
+      !phiPertText = "load-random-expSpec-b"
+      !phiPertText = "load-k-random-a"
+      phiPertText = "load-random-polySpec-b"
+      !phiPertText = "load-random-smooth-b"
+      !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
+      !phiPertText = "load-te0080"
+      phiPertText = trim(phiPertText)
+      call kappa_test_pert(phi_pert, phiPertText, -2.0_pr, 4.0_pr, 0.0_pr)
+      
+      call divergence(phi_pert,testScalarField)
+      testScalar = inner_product(testScalarField,testScalarField,"L2")
+      if(rank==0) then
+      	print*, "|| nabla cdot phi_pert ||_2^2 = ", testScalar
+      end if
+
       local_inner_prod = field_inner_product(gradJ, phi_pert, "L2")
+      
+      
+      
+
+      call calculateSaveSpectrum(phi, "phi")
+      call calculateSaveSpectrum(phi_pert, trim("phiPert-"//phiPertText))
+      call calculateSaveSpectrum(gradJ, "gradJ"//"_q-"//strLebesgueQ)
+
 
       CALL MPI_ALLREDUCE(local_inner_prod, global_inner_prod, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
-      DO ii=1,21
+      !DO ii=1,21
+      DO ii=1,30
          if (rank==0) then
-               print*, "kappa test index", ii, "/21"
+               print*, "kappa test index", ii, "/30"
          end if
          
          myexp = -14.0_pr + 0.5_pr*REAL(ii,pr)
@@ -821,16 +863,16 @@ module optimization
          deltaJ = J1-J0  
 
          IF (rank==0) THEN
-            WRITE(tempStr,'(F3.1)') lebesgueQ-int(lebesgueQ)              ! might result in rounding errors for 1.999999999999
-            WRITE(strLebesgueQ,'(I2.2,a2)') int(lebesgueQ), tempStr(2:)
             CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii, "KappaTest/"//"q-"//strLebesgueQ//"_"//mysystem//".dat")
          END IF 
+         
 
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
       END DO
 
       if( rank == 0 ) then
          print*, "kmax", kmax
+         print*, "max nonlinOrder", testNonlinOrder
       end if
 
       DEALLOCATE(phi_pert)

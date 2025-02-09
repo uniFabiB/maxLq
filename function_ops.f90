@@ -1475,12 +1475,11 @@ module function_ops
             if(rank == 0 .and. abs(lebesgueQ-2.0_pr)>mach_epsilon) then
                print*, "warning (in calc_gk_order2) calculating g^{-|x|}, setting y/0 terms to 0"
             end if
-            where (abs(g) < mach_epsilon)      ! uk can be negative because of rounding errors -> results in NaN values
+            where (abs(g) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
                gk = 0.0_pr
             elsewhere
                gk = g**(k)
             end where
-            !gk(:,:,:) = 0.0_pr
          elseif (k+mach_epsilon < 2.0_pr) then
             gk(:,:,:) = g(:,:,:)**(k)
             if(toDealias) call dealias_scalar(gk,k)

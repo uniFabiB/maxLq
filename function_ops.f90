@@ -1470,7 +1470,7 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_n) :: gk
          real(pr), dimension(:,:,:), allocatable :: g2, g_km2
          integer :: ii,jj,kk
-
+test
          if (k+mach_epsilon<0) then
             if(rank == 0 .and. abs(lebesgueQ-2.0_pr)>mach_epsilon) then
                print*, "warning (in calc_gk_order2) calculating g^{-|x|}, setting y/0 terms to 0"

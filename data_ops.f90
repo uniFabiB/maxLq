@@ -198,10 +198,18 @@ MODULE data_ops
  
           REAL(pr), DIMENSION(1:n(1),1:2), INTENT(IN) :: mydata
           CHARACTER(200) :: filename
+          character(10) :: dealiasing_str
           CHARACTER(*) :: name
           INTEGER :: i
 
-          filename = HomeDir//name//"_spectrum.dat"
+
+          if(toDealias) then
+            dealiasing_str = "deal_"
+          else
+            dealiasing_str = "noDeal_"
+          end if
+
+          filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)
@@ -993,10 +1001,16 @@ MODULE data_ops
           INTEGER, INTENT(IN) :: myindex
           CHARACTER(len=*), INTENT(IN) :: fileName
           CHARACTER(99) :: filePath
-          
+          character(10) :: dealiasing_str
+
+          if(toDealias) then
+            dealiasing_str = "deal_"
+          else
+            dealiasing_str = "noDeal_"
+          end if
 
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
-          filePath = HomeDir//fileName
+          filePath = HomeDir//trim(dealiasing_str)//fileName
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')

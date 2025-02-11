@@ -39,7 +39,7 @@
 
       
       E0List = (/20/)      !(/1, 10, 20, 30, 40, 50, 60/)
-      lebesgueQlist = (/2.0, 4.0, 5.0, 10.0/)
+      lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
       !lebesgueQlist = (/3.0/)
       
       !=============================================
@@ -56,7 +56,7 @@
       ! Newly added in Jan 23
       !=============================================
       
-      RESOL   = 128
+      RESOL   = 64
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used

@@ -81,7 +81,8 @@ module optimization
                lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
                kmax = -PI*real(n(1),pr)
                J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
-               CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
+               gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
+               !CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
                CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
             end do
          end if
@@ -799,14 +800,14 @@ module optimization
 
       !phiPertText = "divfree-sine"
       !phiPertText = "load-random-b"
-      !phiPertText = "load-random-expSpec-b"
+      !phiPertText = "load-random-exp-b"
       !phiPertText = "load-k-random-a"
-      phiPertText = "load-random-polySpec-b"
+      phiPertText = "load-random-poly-b"
       !phiPertText = "load-random-smooth-b"
       !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
       !phiPertText = "load-te0080"
       phiPertText = trim(phiPertText)
-      call kappa_test_pert(phi_pert, phiPertText, -2.0_pr, 0.0_pr, 0.0_pr)
+      call kappa_test_pert(phi_pert, phiPertText, -1.5_pr, 0.0_pr, 0.0_pr)
       
       call divergence(phi_pert,testScalarField)
       testScalar = inner_product(testScalarField,testScalarField,"L2")

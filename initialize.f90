@@ -69,7 +69,7 @@ SUBROUTINE initialize
   ! K3(n(3)/2+1) = 0
 
   kappaTest = .true.
-  toDealias = .false.
+  toDealias = .true.
   add_pert = .FALSE.
   save_diag_NS = .FALSE.
   save_data_NS = .FALSE.

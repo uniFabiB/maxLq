@@ -86,10 +86,10 @@ module function_ops
                call kappa_test_pert(uvec, "load-random-smooth-a", 0.0_pr, 0.0_pr, 0.0_pr)
                
             case (4)
-               call kappa_test_pert(uvec, "load-random-expSpec-a", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-exp-a", 0.0_pr, 0.0_pr, 0.0_pr)
             
             case (5)
-               call kappa_test_pert(uvec, "load-random-polySpec-a", -2.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-poly-a", -2.5_pr, 0.0_pr, 0.0_pr)
 
             case (6)
                call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
@@ -632,7 +632,7 @@ module function_ops
                               faux(ii,jj,kk,ll) = 0.0_pr
                            end do
                         else
-                           do ll=1,3                        	
+                           do ll=1,3
                               faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*m1
                            end do
                         END IF
@@ -673,7 +673,7 @@ module function_ops
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
                
-            CASE ("load-random-polySpec-a")
+            CASE ("load-random-poly-a")
                if(n(1)==32) then
                   filename = "./input/n0032_random_a.nc"
                elseif(n(1)==64) then
@@ -706,7 +706,7 @@ module function_ops
                phi_pert = real(aux,pr)
                call div_free(phi_pert)
                
-            CASE ("load-random-polySpec-b")
+            CASE ("load-random-poly-b")
                if(n(1)==32) then
                   filename = "./input/n0032_random_b.nc"
                elseif(n(1)==64) then
@@ -739,7 +739,7 @@ module function_ops
                phi_pert = real(aux,pr)
                call div_free(phi_pert)
                
-            CASE ("load-random-expSpec-a")
+            CASE ("load-random-exp-a")
                if(n(1)==64) then
                   filename = "./input/n0064_random_a.nc"
                elseif(n(1)==128) then
@@ -769,7 +769,7 @@ module function_ops
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
                
-            CASE ("load-random-expSpec-b")
+            CASE ("load-random-exp-b")
                if(n(1)==64) then
                   filename = "./input/n0064_random_b.nc"
                elseif(n(1)==128) then
@@ -1056,8 +1056,9 @@ module function_ops
             !              - 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
+
+
          end do
-         
 
       end function GradL2ForLq
 
@@ -1517,7 +1518,7 @@ module function_ops
          elsewhere
             uk = uk**(0.5_pr)
          end where
-         
+
          uk = calc_gk_order2(uk, k)
 
       end subroutine calc_uk
@@ -1850,10 +1851,11 @@ module function_ops
             global_spectral_data = 0.0_pr
             mode_count = 0
             DO i3=1,local_N
-               DO i2=1,n(1)
+               DO i2=1,n(2)
                   DO i1=1,n(1)
                      norm_K = SQRT( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
-                     IF (  kk_min < norm_K .AND. norm_K <= kk_max ) THEN
+                     !norm_K = norm_k - MACH_EPSILON
+                     IF (  (kk_min < norm_K) .AND. (norm_K <= kk_max) ) THEN
                         mode_count = mode_count+1
                         local_spectral_data = local_spectral_data + ABS(fu(i1,i2,i3,1))**2 + ABS(fu(i1,i2,i3,2))**2 + ABS(fu(i1,i2,i3,3))**2
                      END IF
@@ -1865,7 +1867,7 @@ module function_ops
          END DO  
 
          spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
-         spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
+         !spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
 
          DEALLOCATE( fu )
          DEALLOCATE( aux )
@@ -2681,8 +2683,8 @@ module function_ops
          
          real(pr), intent(in) :: nonlinOrder
          INTEGER :: i1, i2, i3
-         REAL(pr), DIMENSION(1:3) :: k, k_cut_deal
-         real(pr) :: mode, k_cut_deal_2
+         REAL(pr), DIMENSION(1:3) :: k, k_cut_deal_temp
+         real(pr) :: norm_k, k_cut_deal
 
          if( rank == 0 .and. nonlinOrder < 0) then
             !print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
@@ -2690,32 +2692,37 @@ module function_ops
 
          !print*, "nonlinOrder", nonlinOrder
 
-         k_cut_deal = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
-         !k_cut_deal = 1.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
-         k_cut_deal_2 = k_cut_deal(1)
-
+         !k_cut_deal_temp = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
+         !k_cut_deal_temp = 1.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
+         k_cut_deal = 2.0_pr*PI*real(n(1),pr)/(nonlinOrder+1.0_pr)
 
          if(nonlinOrder>testNonlinOrder)then
             testNonlinOrder = nonlinOrder
          end if
          if(nonlinOrder > 1.0_pr) then
             if (kmax < 0.0_pr) then
-               kmax = k_cut_deal(1)/2.0_pr
+               kmax = k_cut_deal/2.0_pr
             else
-               kmax = max(kmax, k_cut_deal(1)/2.0_pr)
+               kmax = max(kmax, k_cut_deal/2.0_pr)
             end if
          end if
-         
+
+         !k_cut_deal = k_cut_deal - MACH_EPSILON
+
+
+         !print*, "k_cut_deal", k_cut_deal
          
          DO i3 = 1,local_N
             DO i2 = 1, n(2)
                DO i1 = 1, n(1)
-                  mode = SQRT(K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2)
-                  if(mode>k_cut_deal_2) f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
-                  !if ( (abs(K1(i1)) > k_cut_deal_2) .or. (abs(K2(i2)) > k_cut_deal_2) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal_2))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
+                  norm_k = SQRT(K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2)
+                  if( norm_k > k_cut_deal ) then
+                     f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
+                  end if
+                  !if ( (abs(K1(i1)) > k_cut_deal) .or. (abs(K2(i2)) > k_cut_deal) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
                   
                   
-                  !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal_2)**36)
+                  !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal)**36)
                   !if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                   !if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                   !if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))

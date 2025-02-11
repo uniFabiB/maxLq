@@ -783,9 +783,9 @@ module optimization
       
    
       IF (rank==0) THEN
-         print*, "warning, fixing lq norm of uvec"
+      !   print*, "warning, fixing lq norm of uvec"
       END If
-      call Fix_Lq(uvec, 1.0_pr)
+      !call Fix_Lq(uvec, 1.0_pr)
 
 
       WRITE(K0txt,'(i2.2)') K0_index
@@ -806,7 +806,7 @@ module optimization
       !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
       !phiPertText = "load-te0080"
       phiPertText = trim(phiPertText)
-      call kappa_test_pert(phi_pert, phiPertText, -2.0_pr, 4.0_pr, 0.0_pr)
+      call kappa_test_pert(phi_pert, phiPertText, -2.0_pr, 0.0_pr, 0.0_pr)
       
       call divergence(phi_pert,testScalarField)
       testScalar = inner_product(testScalarField,testScalarField,"L2")
@@ -863,7 +863,7 @@ module optimization
          deltaJ = J1-J0  
 
          IF (rank==0) THEN
-            CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii, "KappaTest/"//"q-"//strLebesgueQ//"_"//mysystem//".dat")
+            CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii, "kappa_q-"//strLebesgueQ//"_"//mysystem//".dat")
          END IF 
          
 

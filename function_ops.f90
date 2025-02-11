@@ -89,7 +89,7 @@ module function_ops
                call kappa_test_pert(uvec, "load-random-expSpec-a", 0.0_pr, 0.0_pr, 0.0_pr)
             
             case (5)
-               call kappa_test_pert(uvec, "load-random-polySpec-a", -2.0_pr, 2.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-polySpec-a", -2.0_pr, 0.0_pr, 0.0_pr)
 
             case (6)
                call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
@@ -916,12 +916,12 @@ module function_ops
          implicit none
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: vec
          CHARACTER(len=*), INTENT(IN) :: fileName
-         real(pr), dimension(1:n(1)/2,1:2) :: spectrum
-         
-        CALL calculate_spectral_data(vec, Spectrum)
-        IF (rank==0) THEN
-	   CALL save_spectral_data(Spectrum, fileName)
-        end if
+         real(pr), dimension(1:n(1),1:2) :: spectrum
+
+         CALL calculate_spectral_data(vec, Spectrum)
+         IF (rank==0) THEN
+            CALL save_spectral_data(Spectrum, fileName)
+         end if
       end subroutine calculateSaveSpectrum
 
 
@@ -1752,7 +1752,7 @@ module function_ops
       ! Calculate the spectrum of the velocity field
       ! using spherical shells
       !====================================================
-      SUBROUTINE calculate_spectral_data(u, spectral_data)
+      SUBROUTINE calculate_spectral_dataOLD(u, spectral_data)
          USE global_variables
          USE fftwfunction
          USE mpi
@@ -1802,6 +1802,64 @@ module function_ops
                                     !   local_spectral_data(1) = local_spectral_data(1)/REAL(mode_count,pr)
                                     !   local_spectral_data(2) = local_spectral_data(2)/REAL(mode_count,pr)
                                     !END IF
+            CALL MPI_ALLREDUCE(local_spectral_data, global_spectral_data, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+            spectral_data(i+1,2) = global_spectral_data 
+         END DO  
+
+         spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
+         spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
+
+         DEALLOCATE( fu )
+         DEALLOCATE( aux )
+         DEALLOCATE( faux )
+
+      END SUBROUTINE calculate_spectral_dataOLD
+      SUBROUTINE calculate_spectral_data(u, spectral_data)
+         USE global_variables
+         USE fftwfunction
+         USE mpi
+         IMPLICIT NONE
+
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: u
+         REAL(pr), DIMENSION(1:n(1), 1:2), INTENT(OUT) :: spectral_data
+         COMPLEX(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: fu
+         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
+         INTEGER :: i, i1, i2, i3, mode_count
+         REAL(pr) :: kk_min, kk_max, norm_K
+         REAL(pr) :: local_spectral_data, global_spectral_data, spectral_Ener
+         REAL(pr), DIMENSION(1:3) :: local_q3, Ener
+
+         ALLOCATE( fu(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( aux(1:n(1),1:n(2),1:local_N) )
+         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
+
+         local_q3 = Energy(u)
+         CALL MPI_ALLREDUCE(local_q3, Ener, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+
+         DO i=1,3
+            aux = dcmplx(u(:,:,:,i),0.0_pr)
+            CALL fftfwd(aux, faux)
+            fu(:,:,:,i) = faux
+         END DO
+
+         DO i=0,n(1)
+            kk_min = 2.0_pr*PI*REAL(i,pr)
+            kk_max = 2.0_pr*PI*REAL(i+1,pr)
+            spectral_data(i+1,1) = kk_max
+            local_spectral_data = 0.0_pr
+            global_spectral_data = 0.0_pr
+            mode_count = 0
+            DO i3=1,local_N
+               DO i2=1,n(1)
+                  DO i1=1,n(1)
+                     norm_K = SQRT( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
+                     IF (  kk_min < norm_K .AND. norm_K <= kk_max ) THEN
+                        mode_count = mode_count+1
+                        local_spectral_data = local_spectral_data + ABS(fu(i1,i2,i3,1))**2 + ABS(fu(i1,i2,i3,2))**2 + ABS(fu(i1,i2,i3,3))**2
+                     END IF
+                  END DO
+               END DO
+            END DO
             CALL MPI_ALLREDUCE(local_spectral_data, global_spectral_data, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
             spectral_data(i+1,2) = global_spectral_data 
          END DO  
@@ -2635,6 +2693,8 @@ module function_ops
          k_cut_deal = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
          !k_cut_deal = 1.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
          k_cut_deal_2 = k_cut_deal(1)
+
+
          if(nonlinOrder>testNonlinOrder)then
             testNonlinOrder = nonlinOrder
          end if
@@ -2653,6 +2713,8 @@ module function_ops
                   mode = SQRT(K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2)
                   if(mode>k_cut_deal_2) f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
                   !if ( (abs(K1(i1)) > k_cut_deal_2) .or. (abs(K2(i2)) > k_cut_deal_2) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal_2))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
+                  
+                  
                   !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal_2)**36)
                   !if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                   !if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))

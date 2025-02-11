@@ -196,6 +196,23 @@ MODULE data_ops
           USE global_variables
           IMPLICIT NONE
  
+          REAL(pr), DIMENSION(1:n(1),1:2), INTENT(IN) :: mydata
+          CHARACTER(200) :: filename
+          CHARACTER(*) :: name
+          INTEGER :: i
+
+          filename = HomeDir//name//"_spectrum.dat"
+
+          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+          DO i=1,n(1)
+             WRITE(10, "(2 G20.12)") mydata(i,1), mydata(i,2)
+          END DO
+          CLOSE(10)
+        END SUBROUTINE save_spectral_data
+        SUBROUTINE save_spectral_dataOLD(mydata, name)
+          USE global_variables
+          IMPLICIT NONE
+ 
           REAL(pr), DIMENSION(1:n(1)/2,1:2), INTENT(IN) :: mydata
           !INTEGER, INTENT(IN) :: myindex
 
@@ -222,7 +239,7 @@ MODULE data_ops
           END DO
           CLOSE(10)
 
-        END SUBROUTINE save_spectral_data
+        END SUBROUTINE save_spectral_dataOLD
 
         !==========================================
         ! SAVE 3D SCALAR IN netCDF FORMAT

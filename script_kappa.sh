@@ -1,5 +1,5 @@
 #!/usr/bin/gnuplot
-subfiles=7			# number of files to be grouped
+subfiles=5			# number of files to be grouped
 
 set key Left			# legend left aligned text
 #set key left bottom		# legend position

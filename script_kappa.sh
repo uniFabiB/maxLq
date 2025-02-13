@@ -1,6 +1,8 @@
 #!/usr/bin/gnuplot
+set key Left
+#set key left bottom
 
-subfiles=4
+subfiles=5
 set log x
 maxFileNumber=200
 pointTypeIndex=0

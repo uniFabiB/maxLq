@@ -89,7 +89,7 @@ module function_ops
                call kappa_test_pert(uvec, "load-random-exp-a", 0.0_pr, 0.0_pr, 0.0_pr)
             
             case (5)
-               call kappa_test_pert(uvec, "load-random-poly-a", -2.5_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-poly-a", -3.0_pr, 0.0_pr, 0.0_pr)
 
             case (6)
                call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)

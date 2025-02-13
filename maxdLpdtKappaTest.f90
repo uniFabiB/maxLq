@@ -56,7 +56,7 @@
       ! Newly added in Jan 23
       !=============================================
       
-      RESOL   = 64
+      RESOL   = 256
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used

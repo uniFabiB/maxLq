@@ -28,16 +28,20 @@ module optimization
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
          
-         
+
 
          ell2 = lambda2
          ell1 = lambda1
 
          !CALL Fix_Constr(Uvec, FixConstr_flag)		!!!! TODO
-         IF (FixConstr_flag /= 0) THEN
-            CALL optim_msg_handle(13)
-            RETURN
-         END IF
+         !IF (FixConstr_flag /= 0) THEN
+         !   CALL optim_msg_handle(13)
+
+            !IF (rank==0) THEN
+            !   print*, "FixConstr_flag /= 0, exiting maxdLqdt"
+            !END If
+            !RETURN
+         !END IF
          !====================================
          ! CALCULATE DIAGNOSTICS OF CONTROL
          !====================================
@@ -807,7 +811,7 @@ module optimization
       !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
       !phiPertText = "load-te0080"
       phiPertText = trim(phiPertText)
-      call kappa_test_pert(phi_pert, phiPertText, -1.5_pr, 0.0_pr, 0.0_pr)
+      call kappa_test_pert(phi_pert, phiPertText, -3.0_pr, 0.0_pr, 0.0_pr)
       
       call divergence(phi_pert,testScalarField)
       testScalar = inner_product(testScalarField,testScalarField,"L2")

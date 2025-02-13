@@ -1,7 +1,9 @@
 #!/usr/bin/gnuplot
-
-subfiles=6
+set key Left
+set key left bottom
+subfiles=7
 set log x
+set xrange [5:*]
 set log y
 maxFileNumber=200
 pointTypeIndex=0

@@ -3,8 +3,7 @@ MODULE global_variables
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
-  !INTEGER, PARAMETER :: MAX_ITER = 1000                !original 1000 ! Maximal iterations of maxdEdt
-  INTEGER, PARAMETER :: MAX_ITER = 0                !original 1000 ! Maximal iterations of maxdEdt ! todo change
+  INTEGER, PARAMETER :: MAX_ITER = 1000                !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
   INTEGER, PARAMETER :: KappaPoints = 16
   REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-8_pr

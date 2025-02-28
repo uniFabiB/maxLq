@@ -12,7 +12,7 @@ module optimization
          USE mpi
          IMPLICIT NONE
 
-         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ
+         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ, gradJ1_df
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
 
          REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau, beta, local_scalar_L2norm, divU_L2, divGradJ_L2
@@ -21,27 +21,26 @@ module optimization
          REAL(pr), DIMENSION(1:3) :: dLqdt   ! Modified on April 24, 2017
 
          INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, kappaTestLebesgueQIter
-         LOGICAL :: iterMAX = .FALSE.
 
          ALLOCATE( gradJ0(1:n(1),1:n(2),1:local_N,1:3) )
+
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( gradJ1_df(1:n(1),1:n(2),1:local_N,1:3) )
+
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
          
 
+         CALL Fix_Constr(Uvec, FixConstr_flag)
+         IF (FixConstr_flag /= 0) THEN
+            CALL optim_msg_handle(13)
 
-         ell2 = lambda2
-         ell1 = lambda1
+            IF (rank==0) THEN
+               print*, "FixConstr_flag /= 0, exiting maxdLqdt"
+            END If
+            RETURN
+         END IF
 
-         !CALL Fix_Constr(Uvec, FixConstr_flag)		!!!! TODO
-         !IF (FixConstr_flag /= 0) THEN
-         !   CALL optim_msg_handle(13)
-
-            !IF (rank==0) THEN
-            !   print*, "FixConstr_flag /= 0, exiting maxdLqdt"
-            !END If
-            !RETURN
-         !END IF
          !====================================
          ! CALCULATE DIAGNOSTICS OF CONTROL
          !====================================
@@ -79,26 +78,12 @@ module optimization
             CALL save_Ctrl(Uvec, Wvec, iter, "maxdLqdt")      ! Save velocity and vorticity
          END IF
 
-         !!! kappa test !!!
-         if (.true.) then
-            do kappaTestLebesgueQIter=1, size(lebesgueQlist)
-               lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
-               kmax = -PI*real(n(1),pr)
-               J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
-               gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
-               !CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
-               CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
-            end do
+         if (kappaTest) then
+            !lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
+            J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
+            CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdtL2")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
+            CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
          end if
-
-         if (.false.) then
-            IF (kappaTest) THen
-               CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
-               CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
-               kappaTest = .FALSE.
-            end if
-         end if
-
 
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) )
             IF (rank==0) THEN
@@ -110,9 +95,13 @@ module optimization
             !======================================================
             ! CALCULATE BASIC GRADIENT IN THE H^s TOPOLOGY
             !======================================================
-            CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdt")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
+            CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdtL2")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
 
-            !CALL SobolevGradient(gradJ1, 2, ell1, ell2)   ! I use order=2; it is "1" by Diago's code.
+            CALL SobolevGradient(gradJ1, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ), lambda1, lambda2)   ! 
+
+            gradJ1_df = gradJ1
+
+            call div_free(gradJ1_df)
 
             !======================================================
             ! DECIDE DIRECTION OF INCREASE
@@ -179,6 +168,11 @@ module optimization
             CALL optim_msg_handle(20) 
             tau_brack = mnbrak("maxdLqdt", Uvec, gradJ1, tau_brack(1), tau, mnbrak_flag)
 
+            if(rank==0) then
+               !print*, "tau_brack", tau_brack(1), tau_brack(2), "mnbrak_flag", mnbrak_flag
+            end if
+
+
             IF (mnbrak_flag /= 0) THEN
                IF (rank==0) THEN
                   print *, "Brent iteration beyond maximum, the maxdLqdt stops iterating ... "
@@ -193,12 +187,17 @@ module optimization
                RETURN
             ELSE
                CALL optim_msg_handle(21)
-            END IF
+            END If
 
             CALL optim_msg_handle(30)
 
             tau = brent(iter, "maxdLqdt", Uvec, gradJ1, tau_brack)    ! I add the new variable iter
             CALL optim_msg_handle(31)
+
+            IF (rank==0) THEN
+               print *, "tau", tau
+            END IF
+
             tau = MIN(tau, TAU_MAX)                                  ! TAU_MAX = 10.0_pr
 
             !======================================
@@ -276,6 +275,16 @@ module optimization
 
          CALL optim_msg_handle(1)
 
+         if(rank==0) then
+            if(iter<MAX_ITER) then
+               print*, "optimization terminated successful after", iter, "iterations"
+            else
+               print*, "optimization terminated by max iterations", iter, MAX_ITER
+            end if
+         end if
+
+
+
          DEALLOCATE(gradJ0)
          DEALLOCATE(gradJ1)
          DEALLOCATE(diff_gradJ)
@@ -301,9 +310,12 @@ module optimization
        SELECT CASE (ConsType)
           CASE (1)
              CALL div_free(myfield)
-             CALL Fix_E0(myfield)
-             myflag = 0 
+             CALL Fix_Lq(myfield, 1.0_pr) ! todo change to general ||u||_Lq = B
+             myflag = 0
           CASE (2)
+               if (rank==0) then
+                  print*, "WARNING in Fix_Constr, ConsType = 2 not implemented but used, myflag = ", myflag
+               end if
             !             CALL optim_msg_handle(10)
             !             CALL Fix_K0E0(myfield, optim_msg_flag)
             !             CALL optim_msg_handle(optim_msg_flag)
@@ -417,7 +429,7 @@ module optimization
 
       !print* , myJ
       SELECT CASE (myJ)
-         case ("maxdLqdt")
+         case ("maxdLqdtL2")
             gradJ = GradL2ForLq(phi, lebesgueQ)
 
 
@@ -434,7 +446,10 @@ module optimization
 !            CALL laplacian(gradJ)
 !
 !            gradJ = (SUM(global_VecField_norm) - E0)*gradJ/E0**2
-
+         case DEFAULT
+            IF (rank==0) THEN
+               print*, "WARNING, case ", myJ, " not found in eval_grad_J"
+            END If
       END SELECT      
 
    END SUBROUTINE eval_grad_J
@@ -638,7 +653,8 @@ module optimization
       X = V 
       E = 0.0_pr
 
-      filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
+      filename = HomeDir//"/brent_info.dat"
+      !filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
       OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
       WRITE(10,*) "# Iter  Tau" 
       phi_bar = phi + D*grad

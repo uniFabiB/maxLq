@@ -181,6 +181,8 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
       SUBROUTINE fft_deallocate()
             implicit none            
 
+            call mpi_barrier(mpi_comm_world, statinfo)
+
             ! complex fft
             call fftw_destroy_plan(fwdplan)
             call fftw_destroy_plan(bwdplan)
@@ -191,6 +193,8 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
             call fftw_destroy_plan(bwdplan_r)
             call fftw_free(tmpdata_r)
             call fftw_free(tmpdata_rcx)
+
+            call mpi_barrier(mpi_comm_world, statinfo)
 
             call fftw_mpi_cleanup()
             

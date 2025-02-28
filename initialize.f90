@@ -35,6 +35,9 @@ SUBROUTINE initialize
   Kcut = 2.0_pr*PI*1.0_pr*REAL(n(1),pr)/3.0_pr   ! I changed on Oct 8, 2017
 
   Kmax = 0.0_pr ! will be determined later when dealising
+  
+  kmax = PI*real(n(1),pr)       ! might be changed later when dealiasing depending on the powers 
+  
   testNonlinOrder = 0.0_pr
   if (rank == 0) then
       print*, "kmax_initially", PI*real(n(1),pr)
@@ -69,16 +72,16 @@ SUBROUTINE initialize
   ! K3(n(3)/2+1) = 0
 
   kappaTest = .true.
-  toDealias = .false.
+  toDealias = .true.
   add_pert = .FALSE.
-  save_diag_NS = .FALSE.
-  save_data_NS = .FALSE.
-  save_diag_lineMin = .FALSE.
-  save_data_lineMin = .FALSE.
-  save_diag_Constr = .false.
-  save_data_Constr = .FALSE.
-  save_diag_Optim = .false.
-  save_data_Optim = .false.
+  save_diag_NS = .true.
+  save_data_NS = .true.
+  save_diag_lineMin = .true.
+  save_data_lineMin = .true.
+  save_diag_Constr = .true.
+  save_data_Constr = .true.
+  save_diag_Optim = .true.
+  save_data_Optim = .true.
  
   IF (n(1)<256) THEN
      parallel_data = .FALSE.

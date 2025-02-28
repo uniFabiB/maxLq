@@ -32,6 +32,12 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
 
           SELECT CASE (mysystem)
+            case ("maxdLqdt")
+               filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
+               fx = U(:,:,:,1)
+               fy = U(:,:,:,2)
+               fz = U(:,:,:,3)
+               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             CASE ("maxdEdt") 
 !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
               filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
@@ -489,6 +495,121 @@ MODULE data_ops
         !==========================================
         SUBROUTINE save_field_R3toRn_ncdf(myfield, dimRange, mynames, file_name)
           
+         USE global_variables
+         USE netcdf
+         IMPLICIT NONE
+         INCLUDE "mpif.h"
+
+         REAL(pr), DIMENSION(:,:,:,:), INTENT(IN) :: myfield
+         INTEGER, INTENT(IN) :: dimRange
+         CHARACTER(len=*), INTENT(IN) :: mynames
+         CHARACTER(len=*), INTENT(IN) :: file_name
+        
+         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: f
+         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: local_f
+
+         REAL(pr) :: local_maxf, local_minf, maxf, minf
+         INTEGER :: ncout, ncid, ndims, nvars, include_parents, dimids(3)
+         INTEGER :: x_dimid, y_dimid, z_dimid, f_id       
+         INTEGER :: ii, kk, coma_index, start_index, mynames_length
+         CHARACTER(10) :: varName
+         CHARACTER(50) :: auxName
+         CHARACTER(100) :: parallel_file
+         CHARACTER(2) :: RANKtxt
+         INTEGER :: fname_len, local_nlast_LR
+         INTEGER, DIMENSION(1:3) :: starts, counts
+
+!          print *,  "starting save_field_R3toRn_ncdf to file ", file_name
+         
+         mynames_length = LEN(mynames)
+         coma_index = 0
+         start_index = 1
+
+         ALLOCATE(local_f(1:n(1),1:n(2),1:local_N))
+
+         if (.not. parallel_data) then
+            if(rank==0) then
+               print*, "slight warning: save field R3 -> Rn not implemented for non parallel dataops, using parallel dataops (might be inefficient)"
+            end if
+         end if
+         IF (rank==0) THEN
+            ncout = nf90_create(file_name, NF90_CLOBBER, ncid=ncid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            ncout = nf90_def_dim(ncid, "x", n(1), x_dimid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            ncout = nf90_def_dim(ncid, "y", n(2), y_dimid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            ncout = nf90_def_dim(ncid, "z", NF90_UNLIMITED, z_dimid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            dimids = (/ x_dimid, y_dimid, z_dimid /)
+
+            auxName = mynames
+            DO kk=1,dimRange
+               IF ( kk < dimRange ) THEN
+                  coma_index = SCAN(auxName, ",", .FALSE.)
+                  varName = auxName(1:coma_index-1)
+                  start_index = coma_index+1
+               ELSE
+                  varName = auxName
+               END IF
+               ncout = nf90_def_var(ncid, TRIM(varName), NF90_DOUBLE, dimids, f_id)
+               IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+               auxName = auxName(start_index:mynames_length)
+            END DO
+                  
+            ncout = nf90_enddef(ncid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            ncout = nf90_close(ncid)
+            IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         END IF
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+         starts = (/ 1, 1, rank*local_N+1 /)
+         counts = (/ n(1), n(2), local_N /)            
+
+         !!--------------------------
+         !! START netCDF ROUTINES
+         !!--------------------------
+         DO ii=0,np-1
+            IF (rank==ii) THEN 
+               ncout = nf90_open(file_name, NF90_WRITE, ncid)
+               IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+               coma_index = 0
+               start_index = 1
+               auxName = mynames
+               DO kk=1,dimRange
+                  IF ( kk < dimRange ) THEN
+                     coma_index = SCAN(auxName, ",", .FALSE.)
+                     varName = auxName(1:coma_index-1)
+                     start_index = coma_index+1
+                  ELSE
+                     varName = auxName
+                  END IF
+                  auxName = auxName(start_index:mynames_length)
+
+                  local_f = myfield(:,:,:,kk)
+
+                  ncout = nf90_inq_varid(ncid, TRIM(varName), f_id)
+                  IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                  ncout = nf90_put_var(ncid, f_id, local_f, start = starts, count = counts)
+                  IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+               END DO  
+
+               ncout = nf90_close(ncid)
+               IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+            END IF
+            CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo) 
+         END DO
+
+         DEALLOCATE( local_f )
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         !else
+         !end if
+       END SUBROUTINE save_field_R3toRn_ncdf
+       !!! OLD START !!!
+        SUBROUTINE save_field_R3toRn_ncdfOLD(myfield, dimRange, mynames, file_name)
+          
           USE global_variables
           USE netcdf
           IMPLICIT NONE
@@ -594,7 +715,9 @@ MODULE data_ops
           DEALLOCATE( local_f )
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
  
-        END SUBROUTINE save_field_R3toRn_ncdf
+        END SUBROUTINE save_field_R3toRn_ncdfOLD
+        !!! OLD END !!!
+
 
         !==========================================
         !     SAVE OPTIMIZATION DIAGNOSTICS
@@ -619,7 +742,8 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//myOptimType//"_IG"//IGtxt//"_iter_info.dat"
-          filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
+          !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
+          filename = HomeDir//"iteration_info.dat"   ! Newly added on May 8, 2017
           
           IF (iter == 0) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -975,7 +1099,7 @@ MODULE data_ops
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
-             filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//E0txt//"_lineMin_info.dat"
+             filename = HomeDir//"lineMin_info.dat"
              SELECT CASE (mymode)
                CASE ("replace")
                  OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -1093,9 +1217,10 @@ MODULE data_ops
 
 
           IF (rank==0) THEN   
-             OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-             WRITE(10,*) "      Error during optimization. "//error_string
-             CLOSE(10)
+            OPEN(10, FILE=HomeDir//"/optimization.log", POSITION='APPEND')
+            !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
+            WRITE(10,*) "      Error during optimization. "//error_string
+            CLOSE(10)
           END IF 
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
@@ -1146,9 +1271,10 @@ MODULE data_ops
           END SELECT
 
           IF (rank==0) THEN   
-             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-             !WRITE(10,*) msg_string
-             !CLOSE(10)
+            !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
+            OPEN(10, FILE=HomeDir//"/optimization.log", POSITION='APPEND')
+            WRITE(10,*) msg_string
+            CLOSE(10)
           END IF 
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 

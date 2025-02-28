@@ -1658,8 +1658,11 @@ module function_ops
          REAL(pr), DIMENSION(1:3) :: myPoint, myNormal
          INTEGER :: nn, i1, i2, i3 
          INTEGER, PARAMETER :: numDiagFields = 4 
+         character(3) :: myIterString
 
-         ALLOCATE( Spectrum(1:n(1)/2,1:2) )
+         WRITE(myIterString, '(i3.3)') myIter
+
+         ALLOCATE( Spectrum(1:n(1),1:2) )
          CALL calculate_spectral_data(U, Spectrum)
 
                                  !ALLOCATE( auxVec(1:n(1),1:n(2),1:local_nlast,1:3) )
@@ -1728,12 +1731,14 @@ module function_ops
 
          IF (MOD(myIter,10)==0) THEN
             CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore", "maxdEdt")
+            if (rank==0) then
+               CALL save_spectral_data(Spectrum,"myIter"//myIterString)
+            end if
          END IF
 
 
          IF (rank==0) THEN
-            !CALL save_spectral_data(Spectrum,"12345678")
-            !CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
+            CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
          END IF
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
@@ -2686,19 +2691,12 @@ module function_ops
          REAL(pr), DIMENSION(1:3) :: k, k_cut_deal_temp
          real(pr) :: norm_k, k_cut_deal
 
-         if( rank == 0 .and. nonlinOrder < 0) then
-            !print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
-         end if
+         !if( rank == 0 .and. nonlinOrder < 0) then
+         !   print*, "WARNING DEALIASING ORDER ", nonlinOrder, " < 0"
+         !end if
+ 
+         k_cut_deal = 2.0_pr*PI*real(n(1),pr)/(nonlinOrder+1.0_pr)         ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1)
 
-         !print*, "nonlinOrder", nonlinOrder
-
-         !k_cut_deal_temp = 2.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
-         !k_cut_deal_temp = 1.0_pr*PI*real(n,pr)/(nonlinOrder+1.0_pr)      ! n_cut = 2n/(order+1) >> wavenumber_cut = 4 pi n / (order+1) >> going from -k_max to k_max ( |(-pi,pi)| = 2 pi ) >> |k| < k_cut = 2 pi n / (order + 1) 
-         k_cut_deal = 2.0_pr*PI*real(n(1),pr)/(nonlinOrder+1.0_pr)
-
-         if(nonlinOrder>testNonlinOrder)then
-            testNonlinOrder = nonlinOrder
-         end if
          if(nonlinOrder > 1.0_pr) then
             if (kmax < 0.0_pr) then
                kmax = k_cut_deal/2.0_pr
@@ -2707,11 +2705,6 @@ module function_ops
             end if
          end if
 
-         !k_cut_deal = k_cut_deal - MACH_EPSILON
-
-
-         !print*, "k_cut_deal", k_cut_deal
-         
          DO i3 = 1,local_N
             DO i2 = 1, n(2)
                DO i1 = 1, n(1)
@@ -2720,8 +2713,6 @@ module function_ops
                      f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
                   end if
                   !if ( (abs(K1(i1)) > k_cut_deal) .or. (abs(K2(i2)) > k_cut_deal) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
-                  
-                  
                   !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal)**36)
                   !if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                   !if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
@@ -2882,7 +2873,7 @@ module function_ops
          IMPLICIT NONE
 
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: grad
-         INTEGER, INTENT(IN) :: order
+         real(pr), INTENT(IN) :: order
          REAL(pr), INTENT(IN) :: ell1, ell2
 
          COMPLEX(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: grad_hat
@@ -2905,7 +2896,7 @@ module function_ops
             DO jj=1,n(2)
                DO ii=1,n(1)
                   ksq = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
-                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (ell1)**order*ksq**order + (ell2)**(2*order)*ksq**(2*order) )
+                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (ell1*ksq)**order + (ell2*ksq)**(2*order) )
                END DO
             END DO
          END DO

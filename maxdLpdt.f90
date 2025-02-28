@@ -39,7 +39,9 @@
 
       
       E0List = (/20/)      !(/1, 10, 20, 30, 40, 50, 60/)
-      
+      !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
+      lebesgueQ = 5.0_pr
+
       !=============================================
       ! MPI Initialization; and fftw mpi initialization
       !=============================================
@@ -53,8 +55,8 @@
       ! Read in code parameters; pass input values to code's parameters. 
       ! Newly added in Jan 23
       !=============================================
-      lebesgueQ = 2.0_pr
-      RESOL   = 256
+      
+      RESOL   = 128
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used
@@ -135,18 +137,29 @@
 ! Set parameters' values manually (not read from files).
 ! Newly added in Jan 23
 !=============================================
-!         RESOL    = 256
          K0_index = 0
-!         iguess   = 10 ! defines the initial guess 10 = load previous, 50 = Arnold-Beltrami-Childress, ...
-!         iguess = 50
-         iguess = 0
+         
+!=============================================
+! Initial Data
+! iguess 0 = load FRT_N256E500T017_Uvec_fwdTE0220
+! iguess 1 = load sines
+! iguess 2 = load random a
+! iguess 3 = load random smooth a
+! iguess 4 = load random expSpec a
+! iguess 5 = load random polySpec a
+! iguess 6 = load random k a
+! iguess 10 = load previous (not working)
+! iguess 50 = Arnold-Beltrami-Childress, ...
+!=============================================
+         iguess = 4
+
          NU_index = 2
-         lambda1  = 5.0_pr  ! Newly added on Otc 05, 2017
-         lambda2  = 0.1_pr   ! I changed this velue on March 5, 2017; lambda2 is the value in Sobolev norm
+         lambda1  = 1.0_pr  ! Newly added on Otc 05, 2017
+         lambda2  = 0.0_pr  ! We are using H^s with 0<s<2 and do not have H^2, so we do not need this !OLD I changed this velue on March 5, 2017; lambda2 is the value in Sobolev norm
          alpha0   = 1E-4
 
 
-         viscCoefficient = 0.0_pr                                    ! for testing to turn off individual terms arising from Delta u
+         viscCoefficient = 1.0_pr                                    ! for testing to turn off individual terms arising from Delta u
          pressureCoefficient = 1.0_pr                                ! for testing to turn off individual terms arising from nabla p
 
          if (rank == 0 .and. ((abs(viscCoefficient-1.0)>MACH_EPSILON) .or. (abs(pressureCoefficient-1.0)>MACH_EPSILON))) then

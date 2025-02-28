@@ -1,7 +1,8 @@
 compiler = mpif90
 progName = prog
 
-OBJ = global_variables.o initialize.o data_ops.o fftwfunction.o function_ops.o optimization.o maxdLpdtKappaTest.o
+#OBJ = global_variables.o initialize.o data_ops.o fftwfunction.o function_ops.o optimization.o maxdLpdtKappaTest.o
+OBJ = global_variables.o initialize.o data_ops.o fftwfunction.o function_ops.o optimization.o maxdLpdt.o
 
 BASIC_LIB  = -lm -lmpi
 

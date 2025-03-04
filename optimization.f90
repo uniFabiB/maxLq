@@ -15,12 +15,12 @@ module optimization
          REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJ0, vecTransported_d0
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
 
-         REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau0, tau1, beta, local_scalar_L2norm, divU_L2, divGradJ_L2, inner, norm
+         REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau0, tau1, beta, local_scalar_L2norm, divU_L2, divGradJ_L2, inner, norm, test
          REAL(pr), DIMENSION(1:3) :: local_field_L2norm, local_gradJK0, local_gradJK1, K, E, gradJ_K0, gradJ_K1
          REAL(pr), DIMENSION(1:2) :: tau_brack
          REAL(pr), DIMENSION(1:3) :: dLqdt
 
-         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, kappaTestLebesgueQIter
+         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag
 
          ALLOCATE( gradJ0(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
@@ -59,7 +59,7 @@ module optimization
          !======================================================
          ! initialize variables
          !======================================================
-         J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
+         J0 = eval_J(Uvec, "maxdLqdt")
          J1 = 1.5_pr*J0
          deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
          iter = 0
@@ -82,13 +82,13 @@ module optimization
          END IF
 
          if (kappaTest) then
-            J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
+            J0 = eval_J(Uvec, "maxdLqdt")
             gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
             CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
          end if
 
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) )
-            if (rank==0) print*, "iter =", iter
+            if (rank==0) print*, "iter =", iter, "J0", J0, "tau0", tau0
 
 
             !======================================================
@@ -145,7 +145,7 @@ module optimization
             CALL optim_msg_handle(20) 
             tau_brack = mnbrak("maxdLqdt", Uvec, d1, tau_brack(1), tau1, mnbrak_flag)
 
-            if(rank==0) print*, "tau_brack", tau_brack(1), tau_brack(2), "mnbrak_flag", mnbrak_flag
+            !if(rank==0) print*, "tau_brack", tau_brack(1), tau_brack(2), "mnbrak_flag", mnbrak_flag
 
             IF (mnbrak_flag /= 0) THEN
                IF (rank==0) THEN
@@ -168,7 +168,7 @@ module optimization
             tau1 = brent(iter, "maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
             CALL optim_msg_handle(31)
 
-            IF (rank==0) print*, "tau1", tau1
+            !IF (rank==0) print*, "tau1", tau1
 
             tau1 = MIN(tau1, TAU_MAX)                                  ! TAU_MAX = 10.0_pr
 
@@ -189,6 +189,8 @@ module optimization
             !======================================
             Uvec = Uvec + tau1*d1
             call rescaleLqNorm(uvec, lebesgueQ, constraintB)
+            !test = calc_global_Lq_norm(Uvec, lebesgueQ)
+            !if(rank==0) print*, "uvec Lq norm", test, "B", constraintB
 
             !====================================
             ! CALCULATE DIAGNOSTICS OF CONTROL; Compute related quantities' values of new velocity
@@ -205,8 +207,8 @@ module optimization
 
             dLqdt = calc_dLqdt(Uvec, lebesgueQ)
 
-            J1 = eval_J(Uvec, "maxdLqdt", "K0E0")
-            if(rank==0) print*, "J1", J1
+            J1 = eval_J(Uvec, "maxdLqdt")
+            !if(rank==0) print*, "J1", J1
             deltaJ = (J1-J0)/ABS(J0)
             IF (deltaJ < -MACH_EPSILON) THEN      ! Change om March 30, 2017
                 IF (save_diag_Optim) THEN
@@ -223,7 +225,7 @@ module optimization
             END IF
 
             !===============================
-            ! UPDATE VARIABLES
+            ! UPDATE OLD VARIABLES
             !===============================     
             J0 = J1
             gradJ0 = gradJ1
@@ -274,7 +276,7 @@ module optimization
    !=================================================
    ! FUNCTION THAT CALCULATES COST FUNCTIONAL
    !=================================================
-   RECURSIVE FUNCTION eval_J(myfield, mysystem, myJ) RESULT (J)
+   RECURSIVE FUNCTION eval_J(myfield, mysystem) RESULT (J)
       USE global_variables
       USE data_ops
       USE fftwfunction
@@ -284,7 +286,6 @@ module optimization
 
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: myfield
       CHARACTER(len=*), INTENT(IN) :: mysystem
-      CHARACTER(len=*), INTENT(IN) :: myJ
       REAL(pr) :: J
 
       REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: phi, aux1, aux2, aux3, aux4, aux5   ! Newly added aux5, April 24, 2017
@@ -297,32 +298,21 @@ module optimization
 
       J = 0.0_pr
 
+      allocate( aux1(1:n(1),1:n(2),1:local_N,1:3) )
+      aux1 = myfield
+
       SELECT CASE (mysystem)
          case ("maxdLqdt")
-            allocate( aux1(1:n(1),1:n(2),1:local_N,1:3) )
-            aux1 = myfield
             local_J = calc_dLqdt(aux1, lebesgueQ)
             call mpi_allreduce(local_J, J, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-            deallocate(aux1)
          CASE ("LineMin")
-            SELECT CASE (myJ)
-               CASE ("maxdLqdt")
-                  ALLOCATE( aux1(1:n(1),1:n(2),1:local_N,1:3) )
-                  aux1 = myfield
-                  CALL rescaleLqNorm(aux1, lebesgueQ, constraintB)
-                  IF (constr_flag == 0) THEN
-                     J = -1.0_pr*eval_J(aux1, "maxdLqdt", "K0E0")
-                  ELSE
-                     CALL optim_msg_handle(14)
-                     J = -1.0_pr*eval_J(aux1, "maxdLqdt", "K0E0")
-                  END IF
-                  DEALLOCATE(aux1)
-               case DEFAULT
-                  IF (rank==0)  print*, "WARNING, case ", myJ, " for myJ not found in eval_grad_J"
-            END SELECT
+            CALL rescaleLqNorm(aux1, lebesgueQ, constraintB)
+            IF (constr_flag /= 0) CALL optim_msg_handle(14)
+            J = -1.0_pr*eval_J(aux1, "maxdLqdt")
          case DEFAULT
             IF (rank==0)  print*, "WARNING, case ", mysystem, " for mysystem not found in eval_grad_J"
       END SELECT
+      deallocate(aux1)
    END FUNCTION eval_J
 
    !==================================================
@@ -365,11 +355,11 @@ module optimization
       tB = MAX(tB0, MACH_EPSILON)
 
       phi_bar = phi + tA*grad
-      FA = eval_J(phi_bar, "LineMin", mysystem)
+      FA = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
       phi_bar = phi + tB*grad
-      FB = eval_J(phi_bar, "LineMin", mysystem)
+      FB = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
       IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "replace")
@@ -377,7 +367,7 @@ module optimization
       DO WHILE (FB > FA .AND. tB > MACH_EPSILON) 
          tB = CGOLD*tB
          phi_bar = phi + tB*grad
-         FB = eval_J(phi_bar, "LineMin", mysystem)
+         FB = eval_J(phi_bar, "LineMin")
          FuncEval = FuncEval+1
          IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
       END DO
@@ -389,7 +379,7 @@ module optimization
 
       tC = GOLD*tB
       phi_bar = phi + tC*grad
-      FC = eval_J(phi_bar, "LineMin", mysystem)
+      FC = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
       IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
@@ -398,7 +388,7 @@ module optimization
          iter = iter+1
          tC = GOLD*tC
          phi_bar = phi + tC*grad
-         FC = eval_J(phi_bar, "LineMin", mysystem)
+         FC = eval_J(phi_bar, "LineMin")
          FuncEval = FuncEval+1
                   
          R = (tB-tA)*(FB-FC)
@@ -409,7 +399,7 @@ module optimization
     
          IF ( (tB-tP)*(tP-tC)>0 ) THEN
             phi_bar = phi + tP*grad
-            FP = eval_J(phi_bar, "LineMin", mysystem)
+            FP = eval_J(phi_bar, "LineMin")
         
             IF (FP<FC) THEN
                tA = tB
@@ -425,11 +415,11 @@ module optimization
         
             tP = tC + GOLD*(tC-tB)
             phi_bar = phi + tP*grad
-            FP = eval_J(phi_bar, "LineMin", mysystem)
+            FP = eval_J(phi_bar, "LineMin")
         
          ELSEIF ( (tC-tP)*(tP-Pmax)>0 ) THEN
             phi_bar = phi + tP*grad
-            FP = eval_J(phi_bar, "LineMin", mysystem)
+            FP = eval_J(phi_bar, "LineMin")
        
             IF (FP<FC) THEN
                tB = tC
@@ -438,18 +428,18 @@ module optimization
                FC = FP
                tP = tC+GOLD*(tC-tB)
                phi_bar = phi + tP*grad
-               FP = eval_J(phi_bar, "LineMin", mysystem)
+               FP = eval_J(phi_bar, "LineMin")
             END IF
         
         ELSEIF ( (tP-Pmax)*(Pmax-tC)>=0 ) THEN
             tP = Pmax
             phi_bar = phi + tP*grad
-            FP = eval_J(phi_bar, "LineMin", mysystem)
+            FP = eval_J(phi_bar, "LineMin")
         
          ELSE
             tP = tC + GOLD*(tC-tB)
             phi_bar = phi + tP*grad
-            FP = eval_J(phi_bar, "LineMin", mysystem)
+            FP = eval_J(phi_bar, "LineMin")
          END IF
     
          tA = tB
@@ -524,17 +514,17 @@ module optimization
       X = V 
       E = 0.0_pr
 
-      filename = HomeDir//"/brent_info.dat"
+      filename = HomeDir//"/brent_info"//".dat"
       !filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
       OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
       WRITE(10,*) "# Iter  Tau" 
       phi_bar = phi + D*grad
-      FX = eval_J(phi_bar, "LineMin", mysystem)
+      FX = eval_J(phi_bar, "LineMin")
       WRITE(10, "(G20.12, G20.12)") D, FX
       CLOSE(10)
       
       phi_bar = phi + X*grad
-      FX = eval_J(phi_bar, "LineMin", mysystem)
+      FX = eval_J(phi_bar, "LineMin")
  
       FV = FX 
       FW = FX
@@ -593,7 +583,7 @@ module optimization
          END IF
     
          phi_bar = phi + U*grad
-         FU = eval_J(phi_bar, "LineMin", mysystem)
+         FU = eval_J(phi_bar, "LineMin")
  
          IF ( FU <= FX ) THEN
             IF ( U >= X ) THEN
@@ -729,7 +719,7 @@ module optimization
          
          phi_bar = phi + myepsilon*phi_pert
 
-         J1 = eval_J(phi_bar, mysystem, "maxdLqdt")
+         J1 = eval_J(phi_bar, "maxdLqdt")
          
          kappa = (J1-J0)/(myepsilon*SUM(global_inner_prod))
          deltaJ = J1-J0  

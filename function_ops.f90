@@ -163,6 +163,7 @@ module function_ops
                   CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
                END IF
 
+
             CASE (51)                                   ! Arnold-Beltrami-Childress (ABC) flow, plus perturbation
                DO kk=1, local_N
                   DO jj=1, n(2)
@@ -508,6 +509,8 @@ module function_ops
            DEALLOCATE( Wx )
            DEALLOCATE( Wy )
            DEALLOCATE( Wz )
+
+           call calculateSaveSpectrum(uvec,"initial_guess")
       END SUBROUTINE initial_guess
 
 
@@ -585,6 +588,7 @@ module function_ops
                   filename = "./input/n0256_random_a.nc"
                endif
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               call div_free(phi_pert)
 
             case ("load-random-b")
                if(n(1)==64) then
@@ -595,6 +599,7 @@ module function_ops
                   filename = "./input/n0256_random_b.nc"
                endif
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               call div_free(phi_pert)
 
             CASE ("load-random-smooth-a")
                if(n(1)==64) then
@@ -608,6 +613,7 @@ module function_ops
                do kk=1,3
                   call dealias_scalar(phi_pert(:,:,:,kk), 3.0_pr)
                end do
+               call div_free(phi_pert)
                
             CASE ("load-k-random-a")
                if(n(1)==64) then
@@ -638,6 +644,7 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
+               call div_free(phi_pert)
                
                
             CASE ("load-k-random-b")
@@ -669,6 +676,7 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
+               call div_free(phi_pert)
                
             CASE ("load-random-poly-a")
                if(n(1)==32) then
@@ -765,6 +773,7 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
+               call div_free(phi_pert)
                
             CASE ("load-random-exp-b")
                if(n(1)==64) then
@@ -795,6 +804,7 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
+               call div_free(phi_pert)
 
             CASE ("load-random-smooth-b")
                if(n(1)==64) then
@@ -1908,7 +1918,7 @@ module function_ops
             fu(:,:,:,i) = faux
          END DO
 
-         DO i=0,n(1)
+         DO i=0,n(1)-1
             kk_min = 2.0_pr*PI*REAL(i,pr)
             kk_max = 2.0_pr*PI*REAL(i+1,pr)
             spectral_data(i+1,1) = kk_max
@@ -1919,19 +1929,18 @@ module function_ops
                DO i2=1,n(2)
                   DO i1=1,n(1)
                      norm_K = SQRT( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
-                     !norm_K = norm_k - MACH_EPSILON
                      IF (  (kk_min < norm_K) .AND. (norm_K <= kk_max) ) THEN
-                        mode_count = mode_count+1
                         local_spectral_data = local_spectral_data + ABS(fu(i1,i2,i3,1))**2 + ABS(fu(i1,i2,i3,2))**2 + ABS(fu(i1,i2,i3,3))**2
                      END IF
                   END DO
                END DO
             END DO
             CALL MPI_ALLREDUCE(local_spectral_data, global_spectral_data, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-            spectral_data(i+1,2) = global_spectral_data 
-         END DO  
+            spectral_data(i+1,2) = global_spectral_data
+         END DO
 
-         spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
+         !spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
+         !if(rank==0) print*, "spectral factor should be 1", SUM(Ener)/spectral_Ener
          !spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
 
          DEALLOCATE( fu )

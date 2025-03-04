@@ -223,37 +223,6 @@ MODULE data_ops
           END DO
           CLOSE(10)
         END SUBROUTINE save_spectral_data
-        SUBROUTINE save_spectral_dataOLD(mydata, name)
-          USE global_variables
-          IMPLICIT NONE
- 
-          REAL(pr), DIMENSION(1:n(1)/2,1:2), INTENT(IN) :: mydata
-          !INTEGER, INTENT(IN) :: myindex
-
-          CHARACTER(2) :: IGtxt
-          CHARACTER(2) :: K0txt
-          CHARACTER(2) :: E0txt
-!          CHARACTER(2) :: WEIGHTtxt
-          CHARACTER(200) :: filename
-          CHARACTER(*) :: name
-          INTEGER :: i
-
-          WRITE(K0txt, '(i2.2)') K0_index
-          WRITE(E0txt, '(i2.2)') E0_index
-          WRITE(IGtxt, '(i2.2)') iguess
-!          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-          
-!          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_spectrum.dat"
-          !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_spectrum.dat"   ! Newly added on May 8, 2017
-          filename = HomeDir//name//"_spectrum.dat"
-
-          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-          DO i=1,n(1)/2
-             WRITE(10, "(2 G20.12)") mydata(i,1), mydata(i,2)
-          END DO
-          CLOSE(10)
-
-        END SUBROUTINE save_spectral_dataOLD
 
         !==========================================
         ! SAVE 3D SCALAR IN netCDF FORMAT
@@ -528,9 +497,7 @@ MODULE data_ops
          ALLOCATE(local_f(1:n(1),1:n(2),1:local_N))
 
          if (.not. parallel_data) then
-            if(rank==0) then
-               print*, "slight warning: save field R3 -> Rn not implemented for non parallel dataops, using parallel dataops (might be inefficient)"
-            end if
+            !if(rank==0) print*, "slight warning: save field R3 -> Rn not implemented for non parallel dataops, using parallel dataops (might be inefficient)"
          end if
          IF (rank==0) THEN
             ncout = nf90_create(file_name, NF90_CLOBBER, ncid=ncid)

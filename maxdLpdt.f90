@@ -55,7 +55,22 @@
       ! Read in code parameters; pass input values to code's parameters. 
       ! Newly added in Jan 23
       !=============================================
-      
+
+      !=============================================
+      ! Initial Data
+      ! iguess 0 = load FRT_N256E500T017_Uvec_fwdTE0220
+      ! iguess 1 = load sines
+      ! iguess 2 = load random a
+      ! iguess 3 = load random smooth a
+      ! iguess 4 = load random expSpec a
+      ! iguess 5 = load random polySpec a
+      ! iguess 6 = load random k a
+      ! iguess 10 = load previous (not working)
+      ! iguess 50 = Arnold-Beltrami-Childress, ...
+      !=============================================
+      iguess = 1
+
+      constraintB = 10.0_pr**(0.0_pr)
       RESOL   = 64
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
@@ -139,20 +154,6 @@
 !=============================================
          K0_index = 0
          
-!=============================================
-! Initial Data
-! iguess 0 = load FRT_N256E500T017_Uvec_fwdTE0220
-! iguess 1 = load sines
-! iguess 2 = load random a
-! iguess 3 = load random smooth a
-! iguess 4 = load random expSpec a
-! iguess 5 = load random polySpec a
-! iguess 6 = load random k a
-! iguess 10 = load previous (not working)
-! iguess 50 = Arnold-Beltrami-Childress, ...
-!=============================================
-         iguess = 4
-         constraintB = 10.0_pr**(0.0_pr)
 
          NU_index = 2
          lambda1  = 1.0_pr  ! Newly added on Otc 05, 2017
@@ -165,15 +166,6 @@
             print*, "WARNING viscCoefficient ",viscCoefficient," or pressureCoefficient ", pressureCoefficient, "not 1"
          end if
 
-         CALL MPI_BARRIER(MPI_COMM_WORLD,Statinfo)                                ! Why put MPI_BARRIER here? to wait for what?
-         CALL MPI_BCAST (RESOL,    1, MPI_INTEGER, 0, MPI_COMM_WORLD, Statinfo)   ! Why MPI_BCAST these values as they are global?
-         CALL MPI_BCAST (K0_index, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, Statinfo)
-         CALL MPI_BCAST (E0_index, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, Statinfo)
-         CALL MPI_BCAST (alpha0,   1, MPI_REAL8,   0, MPI_COMM_WORLD, Statinfo)
-         CALL MPI_BCAST (lambda2,  1, MPI_REAL8,   0, MPI_COMM_WORLD, Statinfo)
-         CALL MPI_BCAST (lambda1,  1, MPI_REAL8,   0, MPI_COMM_WORLD, Statinfo)   ! Newly added on Otc 05, 2017
-         CALL MPI_BCAST (iguess,   1, MPI_INTEGER, 0, MPI_COMM_WORLD, Statinfo)
-         CALL MPI_BCAST (NU_index, 1, MPI_INTEGER, 0, MPI_COMM_WORLD, Statinfo)
 
 !=============================================
 !--If put discretization number before MPI_BARRIER, we have to MPI_BCAST n to all processors

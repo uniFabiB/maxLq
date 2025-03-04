@@ -6,88 +6,60 @@ SUBROUTINE initialize
    INCLUDE "fftw3-mpi.f03"             ! Needed, as there is a fftw_mpi_local_size_3d command below
 
    INTEGER :: i,j,k
- 
+
    C_local_alloc = fftw_mpi_local_size_3d(C_n(3), C_n(2), C_n(1), MPI_COMM_WORLD, C_local_N, C_local_k_offset)   ! Newly Added March 18, 2017, use "C_..."
    local_N = int( C_local_N )
    local_k_offset = int( C_local_k_offset )
 
    total_local_size = n(1)*n(2)*local_N
-   
+
    ALLOCATE( Uvec(1:n(1),1:n(2),1:local_N,1:3) )
    ALLOCATE( Wvec(1:n(1),1:n(2),1:local_N,1:3) )
 
-!   cxdata = fftw_alloc_complex(C_local_alloc)
-!   cydata = fftw_alloc_complex(C_local_alloc)
-!   czdata = fftw_alloc_complex(C_local_alloc)
-!   call c_f_pointer(cxdata, fxdata, [C_n(1),C_n(2),C_local_N])
-!   call c_f_pointer(cydata, fydata, [C_n(1),C_n(2),C_local_N])
-!   call c_f_pointer(czdata, fzdata, [C_n(1),C_n(2),C_local_N])
 
    ALLOCATE( K1(1:n(1)) )
    ALLOCATE( K2(1:n(2)) )
    ALLOCATE( K3(1:n(3)) )
-! ALLOCATE( fwork(0:total_local_size) )
 
-  n_dim = 3*n(1)*n(2)*local_N
-  dV = 1.0_pr/PRODUCT(REAL(n,pr))
-!  Kcut = 2.0_pr*PI*REAL(n(1),pr)/3.0_pr
+   dV = 1.0_pr/PRODUCT(REAL(n,pr))
 
-  Kcut = 2.0_pr*PI*1.0_pr*REAL(n(1),pr)/3.0_pr   ! I changed on Oct 8, 2017
+   kmax = PI*real(n(1),pr)       ! might be changed later when dealiasing depending on the powers 
 
-  Kmax = 0.0_pr ! will be determined later when dealising
-  
-  kmax = PI*real(n(1),pr)       ! might be changed later when dealiasing depending on the powers 
-  
-  testNonlinOrder = 0.0_pr
-  if (rank == 0) then
+   if (rank == 0) then
       print*, "kmax_initially", PI*real(n(1),pr)
-  end if
+   end if
 
-  !--Set up wavenumbers
-  DO i = 0, n(1)-1
-    IF (i<=n(1)/2) THEN
-       K1(i+1) = 2.0_pr*PI*REAL(i,pr)
-    ELSE
-       K1(i+1) = 2.0_pr*PI*REAL(i-n(1),pr)
-    END IF
-  END DO
-  ! K1(n(1)/2+1) = 0
+   !--Set up wavenumbers
+   DO i = 0, n(1)-1
+      IF (i<=n(1)/2) THEN
+         K1(i+1) = 2.0_pr*PI*REAL(i,pr)
+      ELSE
+         K1(i+1) = 2.0_pr*PI*REAL(i-n(1),pr)
+      END IF
+   END DO
 
-  DO i = 0,n(2)-1
-    IF (i <= n(2)/2) THEN
+   DO i = 0,n(2)-1
+      IF (i <= n(2)/2) THEN
       K2(i+1) = 2.0_pr*PI*REAL(i,pr)
-    ELSE
+      ELSE
       K2(i+1) = 2.0_pr*PI*REAL(i-n(2),pr)
-    END IF
-  END DO
-  ! K2(n(2)/2+1) = 0
+      END IF
+   END DO
 
-  DO i = 0, n(3)-1
-    IF (i<=n(3)/2) THEN
-       K3(i+1) = 2.0_pr*PI*REAL(i,pr)
-    ELSE
-       K3(i+1) = 2.0_pr*PI*REAL(i-n(3),pr)
-    END IF
-  END DO
-  ! K3(n(3)/2+1) = 0
+   DO i = 0, n(3)-1
+      IF (i<=n(3)/2) THEN
+         K3(i+1) = 2.0_pr*PI*REAL(i,pr)
+      ELSE
+         K3(i+1) = 2.0_pr*PI*REAL(i-n(3),pr)
+      END IF
+   END DO
 
-  kappaTest = .true.
-  toDealias = .true.
-  add_pert = .FALSE.
-  save_diag_NS = .true.
-  save_data_NS = .true.
-  save_diag_lineMin = .true.
-  save_data_lineMin = .true.
-  save_diag_Constr = .true.
-  save_data_Constr = .true.
-  save_diag_Optim = .true.
-  save_data_Optim = .true.
- 
-  IF (n(1)<256) THEN
-     parallel_data = .FALSE.
-  ELSE
-     parallel_data = .TRUE.
-  END IF
+
+   IF (n(1)<256) THEN
+      parallel_data = .FALSE.
+   ELSE
+      parallel_data = .TRUE.
+   END IF
  
 END SUBROUTINE
 

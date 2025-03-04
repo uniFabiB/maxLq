@@ -12,34 +12,30 @@ module optimization
          USE mpi
          IMPLICIT NONE
 
-         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ, gradJ1_df
+         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJ0, vecTransported_d0
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
 
-         REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau, beta, local_scalar_L2norm, divU_L2, divGradJ_L2
+         REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau0, tau1, beta, local_scalar_L2norm, divU_L2, divGradJ_L2, inner, norm
          REAL(pr), DIMENSION(1:3) :: local_field_L2norm, local_gradJK0, local_gradJK1, K, E, gradJ_K0, gradJ_K1
          REAL(pr), DIMENSION(1:2) :: tau_brack
-         REAL(pr), DIMENSION(1:3) :: dLqdt   ! Modified on April 24, 2017
+         REAL(pr), DIMENSION(1:3) :: dLqdt
 
          INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, kappaTestLebesgueQIter
 
          ALLOCATE( gradJ0(1:n(1),1:n(2),1:local_N,1:3) )
-
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
-         ALLOCATE( gradJ1_df(1:n(1),1:n(2),1:local_N,1:3) )
+
+         ALLOCATE( d0(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( d1(1:n(1),1:n(2),1:local_N,1:3) )
+
+
+         ALLOCATE( vecTransported_GradJ0(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( vecTransported_d0(1:n(1),1:n(2),1:local_N,1:3) )
 
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
          
 
-         CALL Fix_Constr(Uvec, FixConstr_flag)
-         IF (FixConstr_flag /= 0) THEN
-            CALL optim_msg_handle(13)
-
-            IF (rank==0) THEN
-               print*, "FixConstr_flag /= 0, exiting maxdLqdt"
-            END If
-            RETURN
-         END IF
 
          !====================================
          ! CALCULATE DIAGNOSTICS OF CONTROL
@@ -60,11 +56,18 @@ module optimization
          dLqdt = calc_dLqdt(Uvec, lebesgueQ)
          
 
-
+         !======================================================
+         ! initialize variables
+         !======================================================
          J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
          J1 = 1.5_pr*J0
-         deltaJ = ABS( (J1-J0)/J0 )    
+         deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
          iter = 0
+         d0 = 0.0_pr
+         vecTransported_GradJ0 = 0.0_pr
+         vecTransported_d0 = 0.0_pr
+         tau0 = 0.0_pr
+         tau1 = 10.0_pr**(-4.0_pr)
 
          IF (save_diag_Optim) THEN
             IF (rank==0) THEN
@@ -79,74 +82,51 @@ module optimization
          END IF
 
          if (kappaTest) then
-            !lebesgueQ = lebesgueQlist(kappaTestLebesgueQIter)
             J0 = eval_J(Uvec, "maxdLqdt", "K0E0")
-            CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdtL2")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
+            gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
             CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
          end if
 
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) )
-            IF (rank==0) THEN
-               print *, "iter =", iter
-            END IF
+            if (rank==0) print*, "iter =", iter
 
 
-            !call test(iter)
             !======================================================
             ! CALCULATE BASIC GRADIENT IN THE H^s TOPOLOGY
             !======================================================
-            CALL eval_grad_J(Uvec, gradJ1, iter, "maxdLqdtL2")   ! Calculate L2 gradient of dEdtHeli, modified on April 24, 2017
+            gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
+            CALL SobolevGradient(gradJ1, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ))
 
-            CALL SobolevGradient(gradJ1, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ), lambda1, lambda2)   ! 
-
-            gradJ1_df = gradJ1
-
-            call div_free(gradJ1_df)
 
             !======================================================
-            ! DECIDE DIRECTION OF INCREASE
-            !====================================================== 
-            !            IF (MOD(iter+1,2)/=0) THEN                ! change on March 16, 2017
-            !               gradType = 0
-            !            ELSE
-            !               gradType = 2
-            !            END IF
+            ! CALCULATE Normal Of Tangent Space
+            !======================================================
+            unit_normal = calcConstraintDerivativeL2(Uvec, lebesgueQ)     ! unit_normal = q |u|^{q-2} u = nabla( ||u||_q^q )
+            call sobolevGradient(unit_normal, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ))  ! nabla^(H^...) (||u||_q^q)
+            inner = global_summed_field_inner_product(unit_normal,unit_normal,"H_l^((3q-1)/(2q))")
+            norm = sqrt(inner)
+            unit_normal(:,:,:,:) = unit_normal(:,:,:,:)/norm               ! n = nabla( ||u||_q^q )/||nabla( ||u||_q^q )||_{H_l^...}
 
-            !            IF (MOD(iter,10)==0) THEN                  ! change on May 24, 2017
-            !               gradType = 0
-            !            ELSE
-            !               gradType = 2
-            !            END IF
 
-            gradType = 0
+            !======================================================
+            ! PROJECT to tangent space, gradJ1 = Projection_Tang(u) (nabla^{H^\dots} J)
+            !======================================================
+            inner = global_summed_field_inner_product(gradJ1,unit_normal,"H_l^((3q-1)/(2q))")                  ! < nabla J, n >_{H_l^...}
+            gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
+            call div_free(gradJ1)                                                                              ! project average free, div free
+            
 
-            SELECT CASE (gradType)
-               CASE (0) !REGULAR STEEPEST ASCENT METHOD
-                  local_field_L2norm = 2.0_pr*Energy(gradJ1)
-                  CALL MPI_ALLREDUCE(local_field_L2norm, gradJ_K1, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                  beta = 0.0_pr
-                  gradJ_K0 = gradJ_K1
-                  diff_gradJ = gradJ1
-   
-               CASE (1) !FLETCHER-REEVES METHOD
-                  local_field_L2norm = 2.0_pr*Energy(gradJ1)
-                  CALL MPI_ALLREDUCE(local_field_L2norm, gradJ_K1, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                  beta = SUM(gradJ_K1)/SUM(gradJ_K0)
-                  gradJ_K0 = gradJ_K1
-                  diff_gradJ = gradJ1
-                  gradJ1 = gradJ1 + beta*gradJ0
-    
-               CASE (2) !POLAK-RIBIERE METHOD
-                  diff_gradJ = gradJ1 - diff_gradJ
-                  local_field_L2norm = field_inner_product(gradJ1, diff_gradJ, "L2")
-                  CALL MPI_ALLREDUCE(local_field_L2norm, gradJ_K1, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                  beta = SUM(gradJ_K1)/SUM(gradJ_K0)
-                  local_field_L2norm = 2.0_pr*Energy(gradJ1)
-                  CALL MPI_ALLREDUCE(local_field_L2norm, gradJ_K0, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                  diff_gradJ = gradJ1
-                  gradJ1 = gradJ1 + beta*gradJ0
-   
-            END SELECT
+            !======================================================
+            ! Calculate Momentum Term (Polak-Ribière)
+            !======================================================
+            beta = global_summed_field_inner_product(gradJ1,gradJ1-vecTransported_GradJ0,"H_l^((3q-1)/(2q))")
+            beta = beta/global_summed_field_inner_product(gradJ1,gradJ1,"H_l^((3q-1)/(2q))")
+            
+            
+            !======================================================
+            ! Descend Direction
+            !======================================================
+            d1(:,:,:,:) = gradJ1(:,:,:,:) + beta*vecTransported_d0
 
             !===========================================
             ! GET DIAGNOSTICS OF ASCENT DIRECTION AND SAVE
@@ -160,18 +140,12 @@ module optimization
             !======================================
             ! FIND OPTIMAL tau BY ARC OPTIMIZATION
             !====================================== 
-            IF (iter==0) THEN 
-               tau = alpha0
-            END IF
             tau_brack(1) = 0.0_pr
 
             CALL optim_msg_handle(20) 
-            tau_brack = mnbrak("maxdLqdt", Uvec, gradJ1, tau_brack(1), tau, mnbrak_flag)
+            tau_brack = mnbrak("maxdLqdt", Uvec, d1, tau_brack(1), tau1, mnbrak_flag)
 
-            if(rank==0) then
-               !print*, "tau_brack", tau_brack(1), tau_brack(2), "mnbrak_flag", mnbrak_flag
-            end if
-
+            if(rank==0) print*, "tau_brack", tau_brack(1), tau_brack(2), "mnbrak_flag", mnbrak_flag
 
             IF (mnbrak_flag /= 0) THEN
                IF (rank==0) THEN
@@ -180,7 +154,7 @@ module optimization
                CALL optim_error_handle(mnbrak_flag)            
                IF (save_diag_Optim) THEN
                   IF (rank==0) THEN
-                     CALL save_diagnostics_optim("maxdLqdt", iter, tau, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                     CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
                   END IF
                   CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
                END IF
@@ -191,28 +165,30 @@ module optimization
 
             CALL optim_msg_handle(30)
 
-            tau = brent(iter, "maxdLqdt", Uvec, gradJ1, tau_brack)    ! I add the new variable iter
+            tau1 = brent(iter, "maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
             CALL optim_msg_handle(31)
 
-            IF (rank==0) THEN
-               print *, "tau", tau
-            END IF
+            IF (rank==0) print*, "tau1", tau1
 
-            tau = MIN(tau, TAU_MAX)                                  ! TAU_MAX = 10.0_pr
+            tau1 = MIN(tau1, TAU_MAX)                                  ! TAU_MAX = 10.0_pr
 
             !======================================
             ! UPDATE CONTROL VARIABLE
             !======================================
-            IF (tau == TAU_MAX) THEN
-               CALL optim_msg_handle(32)
-            END IF
+            IF (tau1 == TAU_MAX) CALL optim_msg_handle(32)
 
-            Uvec = Uvec + tau*gradJ1 
-            CALL Fix_Constr(Uvec, FixConstr_flag)
-            IF (FixConstr_flag /= 0) THEN
-               CALL optim_msg_handle(13)
-               RETURN
-            END IF
+
+            !======================================
+            ! update vectortransport for next step with "old" tangentspace at "old" u
+            !======================================
+            vecTransported_GradJ0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, gradJ1)
+            vecTransported_d0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, d1)
+
+            !======================================
+            ! update u
+            !======================================
+            Uvec = Uvec + tau1*d1
+            call rescaleLqNorm(uvec, lebesgueQ, constraintB)
 
             !====================================
             ! CALCULATE DIAGNOSTICS OF CONTROL; Compute related quantities' values of new velocity
@@ -230,11 +206,12 @@ module optimization
             dLqdt = calc_dLqdt(Uvec, lebesgueQ)
 
             J1 = eval_J(Uvec, "maxdLqdt", "K0E0")
+            if(rank==0) print*, "J1", J1
             deltaJ = (J1-J0)/ABS(J0)
-            IF (deltaJ < -1E-18) THEN      ! Change om March 30, 2017
+            IF (deltaJ < -MACH_EPSILON) THEN      ! Change om March 30, 2017
                 IF (save_diag_Optim) THEN
                     IF (rank==0) THEN
-                        CALL save_diagnostics_optim("maxdLqdt", iter+1, tau, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                        CALL save_diagnostics_optim("maxdLqdt", iter+1, tau1, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
                     END IF
                     CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
                 END IF
@@ -251,12 +228,12 @@ module optimization
             J0 = J1
             gradJ0 = gradJ1
             iter = iter + 1
-
-            !call testFFT(gradJ0(:,:,:,1))
-
+            tau0 = tau1
+            d0 = d1
+            
             IF (save_diag_Optim) THEN
                IF (rank==0) THEN
-                  CALL save_diagnostics_optim("maxdLqdt", iter, tau, beta, J1, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                  CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J1, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
                END IF
                CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
             END IF
@@ -287,45 +264,12 @@ module optimization
 
          DEALLOCATE(gradJ0)
          DEALLOCATE(gradJ1)
+         deallocate(d0)
+         deallocate(d1)
          DEALLOCATE(diff_gradJ)
          DEALLOCATE(f_scalar)
 
       end subroutine
-      
-   !================================================= 
-   ! SUBROUTINE THAT PROJECTS A GIVEN FIELD ONTO THE 
-   ! CONSTRAINT MANIFOLD (CO-DIMENSION 1 or 2)
-   !=================================================
-   SUBROUTINE Fix_Constr(myfield, myflag)
-       USE global_variables
-       USE function_ops
-       USE data_ops
-       USE mpi
-       IMPLICIT NONE
-
-       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: myfield
-       INTEGER, INTENT(OUT) :: myflag
-            !       INTEGER :: optim_msg_flag
-
-       SELECT CASE (ConsType)
-          CASE (1)
-             CALL div_free(myfield)
-             CALL Fix_Lq(myfield, 1.0_pr) ! todo change to general ||u||_Lq = B
-             myflag = 0
-          CASE (2)
-               if (rank==0) then
-                  print*, "WARNING in Fix_Constr, ConsType = 2 not implemented but used, myflag = ", myflag
-               end if
-            !             CALL optim_msg_handle(10)
-            !             CALL Fix_K0E0(myfield, optim_msg_flag)
-            !             CALL optim_msg_handle(optim_msg_flag)
-            !             IF (optim_msg_flag == 11) THEN
-            !                myflag = 0
-            !             ELSE
-            !                myflag = 1
-            !             END IF
-       END SELECT
-   END SUBROUTINE Fix_Constr
 
    !=================================================
    ! FUNCTION THAT CALCULATES COST FUNCTIONAL
@@ -357,102 +301,29 @@ module optimization
          case ("maxdLqdt")
             allocate( aux1(1:n(1),1:n(2),1:local_N,1:3) )
             aux1 = myfield
-            !call div_free(aux1)
             local_J = calc_dLqdt(aux1, lebesgueQ)
-
-            !print*, "eval_j local_j", local_j
             call mpi_allreduce(local_J, J, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
             deallocate(aux1)
-
-               !         CASE ("FixK0E0")
-               !            SELECT CASE (myJ)
-               !               CASE ("Enstrophy")
-               !                  local_vecField_norm = Enstrophy(myfield)
-               !                  CALL MPI_ALLREDUCE(local_VecField_norm, global_VecField_norm, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)                 
-               !
-               !                  J = 0.5_pr*( ( SUM(global_VecField_norm) - E0 )/E0 )**2
-               !
-               !               CASE ("Energy")
-               !                  local_VecField_norm = Energy(myfield) 
-               !                  CALL MPI_ALLREDUCE(local_VecField_norm, global_VecField_norm, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)                 
-               !
-               !                  J = 0.5_pr*( ( SUM(global_VecField_norm) - K0 )/K0 )**2  
-
-               !              END SELECT 
-             
          CASE ("LineMin")
-            ALLOCATE( aux1(1:n(1),1:n(2),1:local_N,1:3) )
-            aux1 = myfield
-            SELECT CASE (myJ)            ! Need further modification
-                  !               CASE ("FixK0E0")
-
-                  !                 CALL div_free(aux1)
-                  !                 CALL Fix_K0(aux1)
-                  !                 J = eval_J(aux1, "FixK0E0", "Enstrophy")
-                  
+            SELECT CASE (myJ)
                CASE ("maxdLqdt")
-
-                  CALL div_free(aux1)
-                  CALL Fix_Constr(aux1, constr_flag)
+                  ALLOCATE( aux1(1:n(1),1:n(2),1:local_N,1:3) )
+                  aux1 = myfield
+                  CALL rescaleLqNorm(aux1, lebesgueQ, constraintB)
                   IF (constr_flag == 0) THEN
                      J = -1.0_pr*eval_J(aux1, "maxdLqdt", "K0E0")
                   ELSE
                      CALL optim_msg_handle(14)
                      J = -1.0_pr*eval_J(aux1, "maxdLqdt", "K0E0")
                   END IF
-
+                  DEALLOCATE(aux1)
+               case DEFAULT
+                  IF (rank==0)  print*, "WARNING, case ", myJ, " for myJ not found in eval_grad_J"
             END SELECT
-         DEALLOCATE(aux1)
+         case DEFAULT
+            IF (rank==0)  print*, "WARNING, case ", mysystem, " for mysystem not found in eval_grad_J"
       END SELECT
    END FUNCTION eval_J
- 
-   !================================================
-   ! Obtain gradient of cost functional
-   !================================================
-   SUBROUTINE eval_grad_J(phi, gradJ, iter_index, myJ)
-      USE global_variables
-      USE data_ops
-      USE fftwfunction
-      USE function_ops
-      USE mpi
-      IMPLICIT NONE
-
-      REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
-      REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(OUT) :: gradJ
-      INTEGER, INTENT(IN) :: iter_index
-      CHARACTER(len=*), INTENT(IN) :: myJ
-
-      !REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: aux1, aux2, aux3, aux4, aux5   ! Newly added aux5, April 24, 2017
-      !REAL(pr), DIMENSION(3) :: local_VecField_norm, global_VecField_norm
-
-      !INTEGER :: ii
-
-      !print* , myJ
-      SELECT CASE (myJ)
-         case ("maxdLqdtL2")
-            gradJ = GradL2ForLq(phi, lebesgueQ)
-
-
-!         CASE ("Energy")
-
-!         CASE ("Enstrophy")
-!            DO ii=1,3
-!               gradJ(:,:,:,ii) = phi(:,:,:,ii)
-!            END DO
-!            local_VecField_norm = Enstrophy(phi)
-!            CALL MPI_ALLREDUCE(local_VecField_norm, global_VecField_norm, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)                 
-!
-!            CALL div_free(gradJ)
-!            CALL laplacian(gradJ)
-!
-!            gradJ = (SUM(global_VecField_norm) - E0)*gradJ/E0**2
-         case DEFAULT
-            IF (rank==0) THEN
-               print*, "WARNING, case ", myJ, " not found in eval_grad_J"
-            END If
-      END SELECT      
-
-   END SUBROUTINE eval_grad_J
 
    !==================================================
    ! BRACKET THE LOCATION OF OPTIMAL TAU
@@ -858,26 +729,6 @@ module optimization
          
          phi_bar = phi + myepsilon*phi_pert
 
-
-         !!! TEST REMOVE AFTERWARDS !!!
-         ! output the fourier transforms of phi and phi_pert
-         !testRemoveAfterwards = dcmplx(phi)
-         !call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
-         !testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
-         !testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
-         !testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
-         !CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi.nc", "netCDF")
-         !testRemoveAfterwards = dcmplx(phi_pert)
-         !call fftfwdv(testRemoveAfterwards,testRemoveAfterwards2)
-         !testRemoveAfterwardsCompX = real(testRemoveAfterwards2(:,:,:,1),pr)
-         !testRemoveAfterwardsCompY = real(testRemoveAfterwards2(:,:,:,2),pr)
-         !testRemoveAfterwardsCompZ = real(testRemoveAfterwards2(:,:,:,3),pr)
-         !CALL save_field_R3toR3_ncdf(testRemoveAfterwardsCompX, testRemoveAfterwardsCompY, testRemoveAfterwardsCompZ, "Ux", "Uy", "Uz", HomeDir//"phi_pert.nc", "netCDF")
-         !!! TEST REMOVE AFTERWARDS !!!
-
-
-
-
          J1 = eval_J(phi_bar, mysystem, "maxdLqdt")
          
          kappa = (J1-J0)/(myepsilon*SUM(global_inner_prod))
@@ -893,7 +744,6 @@ module optimization
 
       if( rank == 0 ) then
          print*, "kmax", kmax
-         print*, "max nonlinOrder", testNonlinOrder
       end if
 
       DEALLOCATE(phi_pert)

@@ -56,7 +56,7 @@
       ! Newly added in Jan 23
       !=============================================
       
-      RESOL   = 128
+      RESOL   = 64
       Kindex  = 0
       E0index = 25      ! does not get used right now, instead the E0List is used 
       E1index = 35      ! does not get used right now, instead the E0List is used
@@ -152,12 +152,11 @@
 ! iguess 50 = Arnold-Beltrami-Childress, ...
 !=============================================
          iguess = 4
+         constraintB = 10.0_pr**(0.0_pr)
 
          NU_index = 2
          lambda1  = 1.0_pr  ! Newly added on Otc 05, 2017
          lambda2  = 0.0_pr  ! We are using H^s with 0<s<2 and do not have H^2, so we do not need this !OLD I changed this velue on March 5, 2017; lambda2 is the value in Sobolev norm
-         alpha0   = 1E-4
-
 
          viscCoefficient = 1.0_pr                                    ! for testing to turn off individual terms arising from Delta u
          pressureCoefficient = 1.0_pr                                ! for testing to turn off individual terms arising from nabla p

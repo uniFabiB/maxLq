@@ -1,9 +1,6 @@
-
 module function_ops
   
    implicit none
-
-
    CONTAINS
       !===================================
       !--Initial guess
@@ -857,54 +854,33 @@ module function_ops
                CALL save_field_R3toR3_ncdf(phi_pert(:,:,:,1), phi_pert(:,:,:,2), phi_pert(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
 
 
-
-
-
-
-               !aux = dcmplx(phi_pert, 0.0_pr)
-               !CALL fftfwdv(aux, faux)
-               !print*, rank, faux(1,1,:,1)
-
-
-
-               !print*, "3 phi_pert(1:5,1,1,1)", phi_pert(1:5,1,1,1)
-
-               !CASE ("gaussian")
-               !DO j=local_last_start, local_last_start+local_nlast-1
-               !   DO i=0,n(1)-1
-               !      X = REAL(i,pr)*dx(1)
-               !      Y = REAL(j,pr)*dx(2)
-               !      w_pert(i,j) = EXP(-100.0_pr*(X-0.5_pr)**2 -100.0_pr*(Y-m1)**2 ) + &
-               !                    EXP(-100.0_pr*(X-0.5_pr)**2 -100.0_pr*(Y-m2)**2 ) 
-               !   END DO
-               !END DO
-
-               !CASE ("random")
-               !CALL init_random_seed()
-               !DO j=local_last_start, local_last_start+local_nlast-1
-               !   DO i=0,n(1)-1
-               !                              !CALL init_random_seed()
-               !      CALL RANDOM_NUMBER(X)
-               !      Y = 2.0_pr*X - 1.0_pr
-               !      vort0(i,j) = Y
-               !   END DO
-               !END DO
-               !CALL filter(vort0, 2)
-
-               
-                                       !CASE DEFAULT
-                                       !DO j=local_last_start, local_last_start+local_nlast-1
-                                       !   DO i=0,n(1)-1
-                                       !      w_pert(i,j) = 0.0
-                                       !   END DO
-                                       !END DO
          END SELECT
-
-                                 !CALL vort2vel(w_pert, phi_pert)
    
       END SUBROUTINE kappa_test_pert
       
-      
+      !=========================================================
+      ! Calculate the L^2 derivative of ||u||_q^q = B^q
+      ! nabla ||u||_q^q = q |u|^{q-2} u
+      !=========================================================
+      function calcConstraintDerivativeL2(u, q) result(resultVec)
+         use global_variables
+         implicit none
+         real(pr), intent(in) :: q
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: resultVec
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: aux_u_q2
+         integer :: ii
+
+         call calc_uk(u,q-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
+
+         resultVec = 0.0_pr
+         do ii = 1,3
+            resultVec(:,:,:,ii) = q*aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = q|u|^{q-2}u
+            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(resultVec(:,:,:,ii), 2.0_pr)
+         end do
+         
+      end function calcConstraintDerivativeL2
+
       !=========================================================
       ! Calculate and save spectrum of a vectorfield
       !=========================================================
@@ -1254,6 +1230,90 @@ module function_ops
 
       END SUBROUTINE testFFT
 
+
+      !=========================================================
+      ! Calculate L^q norm
+      ! result = (int |u|^q)^(1/q) where |u|^q is calculated using dealiasing
+      !=========================================================
+      function calc_global_Lq_norm(u,q) result (norm)
+         use global_variables
+         implicit none
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), intent(in) :: q
+         real(pr), dimension(:,:,:), allocatable :: aux
+         real(pr) :: norm
+         real(pr) :: inner_prod
+
+         allocate ( aux(1:n(1),1:n(2),1:local_n) )
+
+         call calc_uk(u,q/(2.0_pr),aux)
+         inner_prod = global_inner_product(aux,aux,"L2")
+         norm = inner_prod**(1.0_pr/q)
+
+         deallocate(aux)
+         
+      end function
+
+      
+      !=========================================================
+      ! rescale to ||u||_q = B
+      ! u = B u/||u||_q
+      !=========================================================
+      subroutine rescaleLqNorm(u, q, B)
+         use global_variables
+         implicit none
+         real(pr), intent(in) :: q, B
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(inout) :: u
+         real(pr) :: LqNorm
+         
+         LqNorm = calc_global_Lq_norm(u,q)
+         u(:,:,:,:) = B/LqNorm*u(:,:,:,:)
+
+      end subroutine rescaleLqNorm
+      
+      
+      !=========================================================
+      ! vector transport
+      ! Gamma_{q,B}(u, eta, xi) = B/||u+eta||_q [ xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi ]
+      !=========================================================
+      function vectorTransport(u,q,B,eta,xi) result (resultVec)
+         use global_variables
+         use mpi
+         implicit none
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u, eta, xi
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: resultVec
+         real(pr), dimension(:,:,:,:), allocatable :: uPlusEta, aux
+         real(pr), dimension(:,:,:), allocatable :: uPlusEta_Qm2
+         real(pr), intent(in) :: B, q
+         real(pr) :: Lq_norm, intResult
+         integer :: ii
+
+         allocate( uPlusEta(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( aux(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( uPlusEta_Qm2(1:n(1),1:n(2),1:local_N) )
+
+         uPlusEta(:,:,:,:) = u(:,:,:,:) + eta(:,:,:,:)
+
+         call calc_uk(uPlusEta,q-2.0_pr,uPlusEta_Qm2)
+
+         do ii = 1,3
+            aux(:,:,:,ii) = uPlusEta_Qm2(:,:,:)*uPlusEta(:,:,:,ii)         ! aux = |u+eta|^{q-2}(u+eta)
+            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux(:,:,:,ii), 2.0_pr)
+         end do
+
+         intResult = global_summed_field_inner_product(aux,xi,"L2")              ! \int |u+eta|^{q-2}(u+eta)cdot xi
+         
+         Lq_norm = calc_global_Lq_norm(uPlusEta,q)
+
+         resultVec(:,:,:,:) = xi(:,:,:,:) - Lq_norm**(-q)*intResult*uPlusEta(:,:,:,:)  !                 xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi
+         resultVec(:,:,:,:) = B/Lq_norm*resultVec(:,:,:,:)                                ! B/||u+eta||_q [ xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi ]
+
+         deallocate(uPlusEta)
+         deallocate(aux)
+         deallocate(uPlusEta_Qm2)
+
+      end function vectorTransport
 
 
       !=========================================================
@@ -2041,16 +2101,6 @@ module function_ops
 
 
 
-
-
-
-
-
-
-
-
-
-
       !=====================================================================
       ! OBTAINS THE DIV_FREE PORJECTION OF A GIVEN VECTOR FIELD
       !=====================================================================
@@ -2113,90 +2163,6 @@ module function_ops
          DEALLOCATE( divU_hat )
          DEALLOCATE( grad_phi_hat )
       END SUBROUTINE div_free
-
-                     !                                !===========================================================
-                     !                                ! Calculate bilinear form J(f,g) = det(f_x f_y; g_x g_y)
-                     !                                !===========================================================
-                     !
-                     !        SUBROUTINE J_bilinear_form(f,g,J)
-                     !          USE global_variables
-                     !          USE FFT2
-                     !
-                     !          REAL(pr), DIMENSION(1:n(1),1:local_nlast), INTENT(IN) :: f,g
-                     !          REAL(pr), DIMENSION(1:n(1),1:local_nlast), INTENT(OUT) :: J   
-                     !          
-                     !          COMPLEX(pr), DIMENSION(1:n(1), 1:local_nlast) :: aux, faux0, faux1
-                     !          REAL(pr), DIMENSION(1:n(1), 1:local_nlast) :: fx, fy, gx, gy
-                     !          INTEGER :: i1, i2
-                     !
-                     !          aux = dcmplx(f,0.0_pr)
-                     !          CALL ffourier(aux, faux0)
-                     !          
-                     !          DO i2=1,local_nlast
-                     !             DO i1=1,n(1)
-                     !                faux1(i1,i2) = dcmplx(0.0_pr,K1(i1))*faux0(i1,i2)
-                     !             END DO
-                     !          END DO 
-                     !          CALL bfourier(faux1, aux)
-                     !          fx = REAL(aux, pr)
-                     !
-                     !          DO i2=1,local_nlast
-                     !             DO i1=1,n(1)
-                     !                faux1(i1,i2) = dcmplx(0.0_pr,K2(i2+local_last_start))*faux0(i1,i2)
-                     !             END DO
-                     !          END DO 
-                     !          CALL bfourier(faux1, aux)
-                     !          fy = REAL(aux, pr)
-                     !
-                     !          aux = dcmplx(g,0.0_pr)
-                     !          CALL ffourier(aux, faux0)
-                     !          
-                     !          DO i2=1,local_nlast
-                     !             DO i1=1,n(1)
-                     !                faux1(i1,i2) = dcmplx(0.0_pr,K1(i1))*faux0(i1,i2)
-                     !             END DO
-                     !          END DO 
-                     !          CALL bfourier(faux1, aux)
-                     !          gx = REAL(aux, pr)
-                     !
-                     !          DO i2=1,local_nlast
-                     !             DO i1=1,n(1)
-                     !                faux1(i1,i2) = dcmplx(0.0_pr,K2(i2+local_last_start))*faux0(i1,i2)
-                     !             END DO
-                     !          END DO 
-                     !          CALL bfourier(faux1, aux)
-                     !          gy = REAL(aux, pr)
-                     !
-                     !          J = fx*gy - fy*gx
-                     !
-                     !        END SUBROUTINE J_bilinear_form
-                     !
-                     !
-                     !                                !======================================================
-                     !                                ! FIX THE ENERGY OF A GIVEN VELOCITY FIELD
-                     !                                !======================================================
-                     !        SUBROUTINE Fix_K0(myfield)
-                     !          USE global_variables
-                     !          USE FFT2
-                     !          IMPLICIT NONE
-                     !          INCLUDE "mpif.h"
-
-                     !          REAL(pr), DIMENSION(1:n(1), 1:n(2), 1:local_nlast,1:3), INTENT(INOUT) :: myfield
-
-                     !          COMPLEX(pr), DIMENSION(1:n(1), 1:n(2), 1:local_nlast) :: aux, faux
-
-                     !          REAL(pr), DIMENSION(1:3) :: local_E, global_E
-                     !          REAL(pr), DIMENSION(1:3) :: local_K, global_K
-                     !          REAL(pr) :: alpha
-                     !          INTEGER :: ii
-                     !         
-                     !          local_K = Energy(myfield)
-                     !          CALL MPI_ALLREDUCE(local_K, global_K, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                     !          alpha = SQRT(K0/SUM(global_K))
-
-                     !          myfield = alpha*myfield          
-
-                     !        END SUBROUTINE Fix_K0
 
       !======================================================
       ! FIX THE ENSTROPHY OF A GIVEN VELOCITY FIELD
@@ -2322,73 +2288,6 @@ module function_ops
 
       END SUBROUTINE vel2vort
 
-                     !                                !=====================================
-                     !                                ! Transform vorticity to velocity
-                     !                                !=====================================
-                     !        SUBROUTINE vort2vel(W, U)
-                     !          USE global_variables
-                     !          USE FFT2
-                     !          IMPLICIT NONE
-                     !          INCLUDE "mpif.h"
-
-                     !          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_nlast,1:3), INTENT(IN) :: W
-                     !          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_nlast,1:3), INTENT(OUT) :: U
-                     !          
-                     !          COMPLEX(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: fU, fW
-                     !          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
-                     !          INTEGER :: i1, i2, i3, ii
-                     !          REAL(pr) :: ksq
-
-                     !          ALLOCATE( fU(1:n(1),1:n(2),1:local_nlast,1:3) )
-                     !          ALLOCATE( fW(1:n(1),1:n(2),1:local_nlast,1:3) )
-                     !          ALLOCATE( aux(1:n(1),1:n(2),1:local_nlast) )
-                     !          ALLOCATE( faux(1:n(1),1:n(2),1:local_nlast) )
-                     !          
-                     !          DO ii=1,3
-                     !                                     ! aux = dcmplx(W(:,:,:,ii),0.0_pr) 
-                     !                                     ! I Changed on December 5th, 2016;
-                     !             aux = dcmplx(W(:,:,:,ii),0.0_pr)
-                     !             CALL ffourier(aux,faux)
-                     !             fW(:,:,:,ii) = faux
-                     !          END DO
-
-                     !          DO i3 = 1,local_nlast
-                     !             DO i2 = 1,n(2)
-                     !                DO i1 = 1,n(1)
-                     !                   ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_last_start)**2
-                     !                   IF (ksq > MACH_EPSILON) THEN
-                     !                                              ! fU(i1,i2,i3,1) = ( dcmplx(0.0_pr,K2(i2))*fW(i1,i2,i3,3) - dcmplx(0.0_pr,K3(i3+local_last_start))*fW(i1,i2,i3,2) )/ksq
-                     !                                              ! fU(i1,i2,i3,2) = ( dcmplx(0.0_pr,K3(i3+local_last_start))*fW(i1,i2,i3,1) - dcmplx(0.0_pr,K1(i1))*fW(i1,i2,i3,3) )/ksq
-                     !                                              ! fU(i1,i2,i3,3) = ( dcmplx(0.0_pr,K1(i1))*fW(i1,i2,i3,2) - dcmplx(0.0_pr,K2(i2))*fW(i1,i2,i3,1) )/ksq
-                     !                                              ! I Changed on December 5th, 2016;
-                     !                      fU(i1,i2,i3,1) = ( dcmplx(0.0_pr,K2(i2))*fW(i1,i2,i3,3) - dcmplx(0.0_pr,K3(i3+local_last_start))*fW(i1,i2,i3,2) )/ksq
-                     !                      fU(i1,i2,i3,2) = ( dcmplx(0.0_pr,K3(i3+local_last_start))*fW(i1,i2,i3,1) - dcmplx(0.0_pr,K1(i1))*fW(i1,i2,i3,3) )/ksq
-                     !                      fU(i1,i2,i3,3) = ( dcmplx(0.0_pr,K1(i1))*fW(i1,i2,i3,2) - dcmplx(0.0_pr,K2(i2))*fW(i1,i2,i3,1) )/ksq
-                     !                   ELSE
-                     !                                              ! fU(i1,i2,i3,1) = dcmplx(0.0_pr,0.0_pr)
-                     !                                              ! fU(i1,i2,i3,2) = dcmplx(0.0_pr,0.0_pr)
-                     !                                              ! fU(i1,i2,i3,3) = dcmplx(0.0_pr,0.0_pr) 
-                     !                                              ! I Changed on December 5th, 2016;     
-                     !                      fU(i1,i2,i3,1) = dcmplx(0.0_pr,0.0_pr)
-                     !                      fU(i1,i2,i3,2) = dcmplx(0.0_pr,0.0_pr)
-                     !                      fU(i1,i2,i3,3) = dcmplx(0.0_pr,0.0_pr) 
-                     !                   END IF
-                     !                END DO
-                     !             END DO
-                     !          END DO
-
-                     !          DO ii=1,3
-                     !             faux = fU(:,:,:,ii)
-                     !             CALL bfourier(faux,aux)
-                     !             U(:,:,:,ii) = REAL(aux,pr)
-                     !          END DO    
-                     !     
-                     !          DEALLOCATE( fU )
-                     !          DEALLOCATE( fW )
-                     !          DEALLOCATE( aux )
-                     !          DEALLOCATE( faux )
-
-                     !        END SUBROUTINE vort2vel
 
       !========================================
       ! CALCULATE DERIVATIVE WRT ii-th VARIABLE
@@ -2645,35 +2544,6 @@ module function_ops
 
       end subroutine dealias_scalar
 
-      !==========================================
-      ! PERFORM DEALIASING USING CUT OFF
-      ! n_cut = 2/(p+1) n
-      !==========================================
-      !SUBROUTINE dealias_vec(u, nonlinOrder)
-      !   USE global_variables
-      !   USE fftwfunction
-      !   IMPLICIT NONE
-      !   
-      !   real(pr), intent(in) :: nonlinOrder           ! quadratic (advection term) 2, cubic 3, ...
-      !   real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: u
-      !   complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
-      !   complex(pr), dimension(1:n(1),1:n(2),1:local_N) :: faux_scalar
-      !   integer :: ii
-      !
-      !   aux = dcmplx(u, 0.0_pr)
-      !
-      !   call fftfwdv(aux,faux)
-      !
-      !   do ii = 1,3
-      !      faux_scalar = faux(:,:,:,ii)
-      !      call dealiasing_cutoff_scalar_complex(faux_scalar,nonlinOrder)
-      !      faux(:,:,:,ii) = faux_scalar
-      !   end do
-      !
-      !   call fftbwdv(faux,aux)
-      !   
-      !   u = real(aux, pr)
-      !end subroutine dealias_vec
 
       !==========================================
       ! PERFORM DEALIASING USING CUT OFF
@@ -2712,11 +2582,6 @@ module function_ops
                   if( norm_k > k_cut_deal ) then
                      f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
                   end if
-                  !if ( (abs(K1(i1)) > k_cut_deal) .or. (abs(K2(i2)) > k_cut_deal) .or. (abs(K3(i3+local_k_offset)) > k_cut_deal))  f(i1,i2,i3) = dcmplx(0.0_pr, 0.0_pr)		! I THINK THIS WOULD BE WRONG SINCE THEN WE STILL GET CONTRIBUTIONS FROM ALIASES
-                  !!f(i1,i2,i3) = f(i1,i2,i3)*EXP(-36.0_pr*(mode/k_cut_deal)**36)
-                  !if (abs(K1(i1))                  > k_cut_deal(1))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
-                  !if (abs(K2(i2))                  > k_cut_deal(2))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
-                  !if (abs(K2(i3+local_k_offset))   > k_cut_deal(3))  f(i1,i2,i3) = dcmplx(0.0_pr, dimag(f(i1,i2,i3)))
                END DO
             END DO
          END DO
@@ -2737,16 +2602,17 @@ module function_ops
          CHARACTER(len=*), INTENT(IN) :: mytype
 
          REAL(pr) :: real_loc_prod, inn_prod, ksq
-         REAL(pr) :: local_inn_prod 
+         REAL(pr) :: local_inn_prod , order, factor
 
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: fhat, ghat, aux
-         REAL(pr),    DIMENSION(:,:,:), ALLOCATABLE :: f_aux
+         REAL(pr),    DIMENSION(:,:,:), ALLOCATABLE :: f_aux, g_aux
          INTEGER :: i1, i2, i3
 
          ALLOCATE( fhat(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( ghat(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( aux(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( f_aux(1:n(1),1:n(2),1:local_N) )
+         ALLOCATE( g_aux(1:n(1),1:n(2),1:local_N) )
 
          SELECT CASE (mytype)
          CASE ("L2")
@@ -2763,66 +2629,27 @@ module function_ops
 
 
             inn_prod = local_inn_prod
-                                    !CALL MPI_ALLREDUCE(local_inn_prod, inn_prod, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-                     !            CASE ("H1")
-                     !                aux = dcmplx(f,0.0_pr)
-                     !               CALL fftfwd(aux, fhat)
-                     !               DO i3=1,local_N
-                     !                  DO i2=1,n(2)
-                     !                     DO i1=1,n(1)
-                     !                        ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2
-                     !                        fhat(i1,i2,i3) = (1.0_pr + lambda0**2*ksq)*fhat(i1,i2,i3)
-                     !                     END DO
-                     !                  END DO
-                     !               END DO
-                     !               CALL fftbwd(fhat, aux)
-                     !               f_aux = REAL(aux,pr)
-                     !               inn_prod = inner_product(f_aux,g,"L2")
-
-                     !            CASE ("semi_H1")
-                     !                aux = dcmplx(f,0.0_pr)
-                     !               CALL fftfwd(aux, fhat)
-                     !               DO i3=1,local_N
-                     !                  DO i2=1,n(2)
-                     !                     DO i1=1,n(1)
-                     !                        ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2
-                     !                        fhat(i1,i2,i3) = lambda0**2*ksq*fhat(i1,i2,i3)
-                     !                     END DO
-                     !                  END DO
-                     !               END DO
-                     !               CALL fftbwd(fhat, aux)
-                     !               f_aux = REAL(aux,pr)
-                     !               inn_prod = inner_product(f_aux,g,"L2")
-
-                     !            CASE ("H2")
-                     !                aux = dcmplx(f,0.0_pr)
-                     !               CALL fftfwd(aux, fhat)
-                     !               DO i3=1,local_N
-                     !                  DO i2=1,n(2)
-                     !                     DO i1=1,n(1)
-                     !                        ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2
-                     !                        fhat(i1,i2,i3) = (1.0_pr + lambda0**4*ksq**2)*fhat(i1,i2,i3)
-                     !                     END DO
-                     !                  END DO
-                     !               END DO
-                     !               CALL fftbwd(fhat, aux)
-                     !               f_aux = REAL(aux,pr)
-                     !               inn_prod = inner_product(f_aux,g,"L2")
-
-                     !            CASE ("semi_H2")
-                     !                aux = dcmplx(f,0.0_pr)
-                     !               CALL fftfwd(aux, fhat)
-                     !               DO i3=1,local_N
-                     !                  DO i2=1,n(2)
-                     !                     DO i1=1,n(1)
-                     !                        ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2
-                     !                        fhat(i1,i2,i3) = lambda0**4*ksq**2*fhat(i1,i2,i3)
-                     !                     END DO
-                     !                  END DO
-                     !               END DO
-                     !               CALL fftbwd(fhat, aux)
-                     !               f_aux = REAL(aux,pr)
-                     !               inn_prod = inner_product(f_aux,g,"L2")
+         case ("H_l^((3q-1)/(2q))")
+            aux = dcmplx(f,0.0_pr)
+            CALL fftfwd(aux, fhat)
+            aux = dcmplx(g,0.0_pr)
+            CALL fftfwd(aux, ghat)
+            order = (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ)
+            DO i3=1,local_N
+               DO i2=1,n(2)
+                  DO i1=1,n(1)
+                     ksq = sqrt( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
+                     factor = 1.0_pr + (lambda1*ksq)**order + (lambda2*ksq)**(2*order)
+                     fhat(i1,i2,i3) = factor * fhat(i1,i2,i3)
+                     ghat(i1,i2,i3) = factor * ghat(i1,i2,i3)
+                  END DO
+               END DO
+            END DO
+            CALL fftbwd(fhat, aux)
+            f_aux = REAL(aux,pr)
+            CALL fftbwd(ghat, aux)
+            g_aux = REAL(aux,pr)
+            inn_prod = inner_product(f_aux,g_aux,"L2")
 
          END SELECT
 
@@ -2830,7 +2657,26 @@ module function_ops
          DEALLOCATE( ghat )
          DEALLOCATE( aux )
          DEALLOCATE( f_aux )
+         DEALLOCATE( g_aux )
       END FUNCTION inner_product 
+
+      !=======================================================
+      ! CALCULATE THE GLOBAL INNER PRODUCT BETWEEN TWO (scalar) FIELDS
+      !=======================================================
+      FUNCTION global_inner_product(f,g,mytype) RESULT (inn_prod)
+         USE global_variables
+         use mpi
+         IMPLICIT NONE
+   
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N), INTENT(IN) :: f,g
+         real(pr) :: local_inner, global_inner
+         CHARACTER(len=*), INTENT(IN) :: mytype
+         REAL(pr) :: inn_prod
+
+         local_inner = inner_product(f,g,mytype)
+         call mpi_allreduce(local_inner, inn_prod, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+
+      END FUNCTION global_inner_product
 
       !=======================================================
       ! CALCULATE THE INNER PRODUCT BETWEEN TWO (vector) FIELDS
@@ -2863,18 +2709,36 @@ module function_ops
    
       END FUNCTION field_inner_product 
 
+      !=======================================================
+      ! CALCULATE THE GLOBAL SUMMED INNER PRODUCT BETWEEN TWO (vector) FIELDS
+      !=======================================================
+      FUNCTION global_summed_field_inner_product(f,g,mytype) RESULT (inn_prod)
+         USE global_variables
+         use mpi
+         IMPLICIT NONE
+   
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: f,g
+         real(pr), dimension(1:3) :: local_inner, global_inner
+         CHARACTER(len=*), INTENT(IN) :: mytype
+         REAL(pr) :: inn_prod
+
+         local_inner = field_inner_product(f,g,mytype)
+         call mpi_allreduce(local_inner, global_inner, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+         inn_prod = sum(global_inner)
+
+      END FUNCTION global_summed_field_inner_product 
+
       !======================================================
       ! CALCULATE THE SOBOLEV GRADIENT OF ORDER P, GIVEN
       ! THE L2 GRADIENT
       !======================================================
-      SUBROUTINE SobolevGradient(grad, order, ell1, ell2)
+      SUBROUTINE SobolevGradient(grad, order)
          USE global_variables
          USE fftwfunction
          IMPLICIT NONE
 
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: grad
          real(pr), INTENT(IN) :: order
-         REAL(pr), INTENT(IN) :: ell1, ell2
 
          COMPLEX(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: grad_hat
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
@@ -2896,7 +2760,7 @@ module function_ops
             DO jj=1,n(2)
                DO ii=1,n(1)
                   ksq = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
-                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (ell1*ksq)**order + (ell2*ksq)**(2*order) )
+                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (lambda1*ksq)**order + (lambda2*ksq)**(2*order) )
                END DO
             END DO
          END DO

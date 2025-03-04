@@ -510,7 +510,6 @@ module function_ops
            DEALLOCATE( Wy )
            DEALLOCATE( Wz )
 
-           call calculateSaveSpectrum(uvec,"initial_guess")
       END SUBROUTINE initial_guess
 
 
@@ -1828,68 +1827,6 @@ module function_ops
       ! Calculate the spectrum of the velocity field
       ! using spherical shells
       !====================================================
-      SUBROUTINE calculate_spectral_dataOLD(u, spectral_data)
-         USE global_variables
-         USE fftwfunction
-         USE mpi
-         IMPLICIT NONE
-
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: u
-         REAL(pr), DIMENSION(1:n(1)/2, 1:2), INTENT(OUT) :: spectral_data
-         COMPLEX(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: fu
-         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
-         INTEGER :: i, i1, i2, i3, mode_count
-         REAL(pr) :: kk_min, kk_max, norm_K
-         REAL(pr) :: local_spectral_data, global_spectral_data, spectral_Ener
-         REAL(pr), DIMENSION(1:3) :: local_q3, Ener
-
-         ALLOCATE( fu(1:n(1),1:n(2),1:local_N,1:3) )
-         ALLOCATE( aux(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
-
-         local_q3 = Energy(u)
-         CALL MPI_ALLREDUCE(local_q3, Ener, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-
-         DO i=1,3
-            aux = dcmplx(u(:,:,:,i),0.0_pr)
-            CALL fftfwd(aux, faux)
-            fu(:,:,:,i) = faux
-         END DO
-
-         DO i=0,n(1)/2-1
-            kk_min = 2.0_pr*PI*REAL(i,pr)
-            kk_max = 2.0_pr*PI*REAL(i+1,pr)
-            spectral_data(i+1,1) = kk_max
-            local_spectral_data = 0.0_pr
-            global_spectral_data = 0.0_pr
-            mode_count = 0
-            DO i3=1,local_N
-               DO i2=1,n(1)
-                  DO i1=1,n(1)
-                     norm_K = SQRT( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
-                     IF (  kk_min < norm_K .AND. norm_K <= kk_max ) THEN
-                        mode_count = mode_count+1
-                        local_spectral_data = local_spectral_data + ABS(fu(i1,i2,i3,1))**2 + ABS(fu(i1,i2,i3,2))**2 + ABS(fu(i1,i2,i3,3))**2
-                     END IF
-                  END DO
-               END DO
-            END DO
-                                    !IF ( mode_count /= 0) THEN
-                                    !   local_spectral_data(1) = local_spectral_data(1)/REAL(mode_count,pr)
-                                    !   local_spectral_data(2) = local_spectral_data(2)/REAL(mode_count,pr)
-                                    !END IF
-            CALL MPI_ALLREDUCE(local_spectral_data, global_spectral_data, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-            spectral_data(i+1,2) = global_spectral_data 
-         END DO  
-
-         spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
-         spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
-
-         DEALLOCATE( fu )
-         DEALLOCATE( aux )
-         DEALLOCATE( faux )
-
-      END SUBROUTINE calculate_spectral_dataOLD
       SUBROUTINE calculate_spectral_data(u, spectral_data)
          USE global_variables
          USE fftwfunction
@@ -1918,7 +1855,7 @@ module function_ops
             fu(:,:,:,i) = faux
          END DO
 
-         DO i=0,n(1)-1
+         DO i=0,n(1)-1     ! careful with index out of bounds errors, mpif90 compiler does not care about them!!!
             kk_min = 2.0_pr*PI*REAL(i,pr)
             kk_max = 2.0_pr*PI*REAL(i+1,pr)
             spectral_data(i+1,1) = kk_max

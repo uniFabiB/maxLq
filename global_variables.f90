@@ -9,7 +9,7 @@ MODULE global_variables
   REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-8_pr
   REAL(pr), PARAMETER :: CONSTR_TOL = 1.0e-10_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr 
-  REAL(pr), PARAMETER :: TAU_MAX = 10.0_pr              ! Maximal step
+  REAL(pr), PARAMETER :: TAU_MAX = 10.0_pr              ! Maximal step (original 10.0_pr)
   REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr
 
   CHARACTER(len=*), parameter :: HomeDir = "./output/"   ! Newly added on May 8, 2017, for setting directory
@@ -31,11 +31,15 @@ MODULE global_variables
   INTEGER, SAVE :: K0_index, E0_index, NU_index, iguess, ConsType
   REAL(pr), SAVE :: E0, K0, PI, visc, lambda2, lambda1, alpha0, dV, Kmax, lebesgueQ
   real(pr), dimension(:), allocatable, save :: lebesgueQlist
+  real(pr), dimension(:,:), allocatable :: optimizationResultList
+  real(pr), dimension(:), allocatable :: B_list
+  integer :: B_list_iterator
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
   REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec, Wvec
 
-  real(pr), save :: viscCoefficient, pressureCoefficient                        ! for debugging to turn on and off the viscocity/pressure terms
+  real(pr) :: viscCoefficient = 1.0_pr                                          ! for debugging to turn on and off the viscocity/pressure terms
+  real(pr) :: pressureCoefficient = 1.0_pr                                      ! for debugging to turn on and off the viscocity/pressure terms
   real(pr), save :: constraintB                                                 ! constraint size, i.e. ||u||_q = B
   
   !========================================================================== 

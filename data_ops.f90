@@ -687,6 +687,41 @@ MODULE data_ops
 
 
         !==========================================
+        ! SAVE OPTIMIZATION RESULT LIST
+        !==========================================
+        SUBROUTINE save_to_optimizationResultList(B, J1, iter)
+         USE global_variables
+         IMPLICIT NONE
+
+         real(pr), intent(in) :: B, J1
+         integer, intent(in) :: iter
+         CHARACTER(200) :: filename
+
+         character(4) :: lebesgueQtxt
+         WRITE(lebesgueQtxt, '(F4.1)') lebesgueQ
+         
+
+
+         filename = HomeDir//"q"//trim(lebesgueQtxt)//"_"//"results.dat"
+         
+         if(rank==0) then
+
+            if(B_list_iterator==0) then
+               OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+               !WRITE(10,*) "# B  J1 iter"
+               WRITE(10, "(3 G20.12)") "B", "J1", "iter"
+               close(10)
+            end if
+
+               
+            OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+            WRITE(10, "(2 G20.12, I5.4)") B, J1, Iter
+            CLOSE(10)
+         end if
+
+       END SUBROUTINE save_to_optimizationResultList
+
+        !==========================================
         !     SAVE OPTIMIZATION DIAGNOSTICS
         !==========================================
         SUBROUTINE save_diagnostics_optim(myOptimType, iter, tau, beta, J, ener, ens, L2div, dEdt_visc, dEdt_NL, dEdt_Heli)   ! Newly modify April 24, 2017

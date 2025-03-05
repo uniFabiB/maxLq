@@ -23,6 +23,8 @@ SUBROUTINE initialize
 
    dV = 1.0_pr/PRODUCT(REAL(n,pr))
 
+   PI = 4.0_pr*ATAN2(1.0_pr,1.0_pr)            ! Set value of the constant pi
+
    kmax = PI*real(n(1),pr)       ! might be changed later when dealiasing depending on the powers 
 
    if (rank == 0) then

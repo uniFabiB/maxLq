@@ -36,6 +36,10 @@ module optimization
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
          
 
+         !====================================
+         ! rescale to match the potentially changed constraint value
+         !====================================
+         call rescaleLqNorm(Uvec,lebesgueQ,constraintB)
 
          !====================================
          ! CALCULATE DIAGNOSTICS OF CONTROL
@@ -254,6 +258,13 @@ module optimization
 
          CALL optim_msg_handle(1)
 
+         !===============================
+         ! save results
+         !===============================    
+         if (rank==0) print*, "iter =", iter, "J1", J1, "tau1", tau1, "end of iteration"
+         call save_to_optimizationResultList(constraintB, J1, iter)
+         
+
          if(rank==0) then
             if(iter<MAX_ITER) then
                print*, "optimization terminated successful after", iter, "iterations"
@@ -261,6 +272,8 @@ module optimization
                print*, "optimization terminated by max iterations", iter, MAX_ITER
             end if
          end if
+
+
 
 
 

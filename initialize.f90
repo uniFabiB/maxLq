@@ -26,10 +26,7 @@ SUBROUTINE initialize
    PI = 4.0_pr*ATAN2(1.0_pr,1.0_pr)            ! Set value of the constant pi
 
    kmax = PI*real(n(1),pr)       ! might be changed later when dealiasing depending on the powers 
-
-   if (rank == 0) then
-      print*, "kmax_initially", PI*real(n(1),pr)
-   end if
+   !if (rank == 0) print*, "kmax_initially", kmax
 
    !--Set up wavenumbers
    DO i = 0, n(1)-1

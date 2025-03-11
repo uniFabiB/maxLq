@@ -579,7 +579,9 @@ module function_ops
 
 
             case ("load-random-a")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_a.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_a.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_a.nc"
@@ -590,7 +592,9 @@ module function_ops
                call div_free(phi_pert)
 
             case ("load-random-b")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_b.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_b.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_b.nc"
@@ -601,7 +605,9 @@ module function_ops
                call div_free(phi_pert)
 
             CASE ("load-random-smooth-a")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_a.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_a.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_a.nc"
@@ -615,7 +621,9 @@ module function_ops
                call div_free(phi_pert)
                
             CASE ("load-k-random-a")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_a.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_a.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_a.nc"
@@ -647,7 +655,9 @@ module function_ops
                
                
             CASE ("load-k-random-b")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_b.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_b.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_b.nc"
@@ -744,7 +754,9 @@ module function_ops
                call div_free(phi_pert)
                
             CASE ("load-random-exp-a")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_a.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_a.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_a.nc"
@@ -775,7 +787,9 @@ module function_ops
                call div_free(phi_pert)
                
             CASE ("load-random-exp-b")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_b.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_b.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_b.nc"
@@ -806,7 +820,9 @@ module function_ops
                call div_free(phi_pert)
 
             CASE ("load-random-smooth-b")
-               if(n(1)==64) then
+               if(n(1)==32) then
+                  filename = "./input/n0032_random_b.nc"
+               elseif(n(1)==64) then
                   filename = "./input/n0064_random_b.nc"
                elseif(n(1)==128) then
                   filename = "./input/n0128_random_b.nc"
@@ -1728,8 +1744,9 @@ module function_ops
          INTEGER :: nn, i1, i2, i3 
          INTEGER, PARAMETER :: numDiagFields = 4 
          character(3) :: myIterString
-
+         character(2) :: mybIter
          WRITE(myIterString, '(i3.3)') myIter
+         WRITE(mybIter, '(i2.2)') B_list_iterator
 
          ALLOCATE( Spectrum(1:n(1),1:2) )
          CALL calculate_spectral_data(U, Spectrum)
@@ -1791,20 +1808,15 @@ module function_ops
          local_q1 = MINVAL(aux)
          CALL MPI_ALLREDUCE(local_q1, minHel, 1, MPI_REAL8, MPI_MIN, MPI_COMM_WORLD, Statinfo)
 
-
-         CALL calculate_geometric_data(U, W, aux, "Q", vorCoreData)
-         allDiagFields(:,:,:,4) = aux
-
          CALL calculate_ring_data(allDiagFields(:,:,:,2))
 
+         CALL calculate_geometric_data(U, W, aux, "Q", vorCoreData)
 
-         IF (MOD(myIter,10)==0) THEN
-            CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore", "maxdEdt")
-            if (rank==0) then
-               CALL save_spectral_data(Spectrum,"myIter"//myIterString)
-            end if
-         END IF
+         allDiagFields(:,:,:,4) = aux
 
+
+         CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore", "maxdEdt")
+         CALL calculateSaveSpectrum(u,"u"//"_bIter"//mybIter//"_final_iter"//myIterString)
 
          IF (rank==0) THEN
             CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
@@ -1846,8 +1858,6 @@ module function_ops
          ALLOCATE( aux(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
 
-         local_q3 = Energy(u)
-         CALL MPI_ALLREDUCE(local_q3, Ener, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
          DO i=1,3
             aux = dcmplx(u(:,:,:,i),0.0_pr)
@@ -1876,8 +1886,10 @@ module function_ops
             spectral_data(i+1,2) = global_spectral_data
          END DO
 
+         !local_q3 = Energy(u)
+         !CALL MPI_ALLREDUCE(local_q3, Ener, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
          !spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
-         !if(rank==0) print*, "spectral factor should be 1", SUM(Ener)/spectral_Ener
+         !if(rank==0) print*, "spectral factor, should it be 1?", SUM(Ener)/spectral_Ener
          !spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
 
          DEALLOCATE( fu )

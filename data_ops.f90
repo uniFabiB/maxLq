@@ -33,7 +33,7 @@ MODULE data_ops
 
           SELECT CASE (mysystem)
             case ("maxdLqdt")
-               filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
+               filename = ConstraintDir//"u0.nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
@@ -103,6 +103,15 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
 
           SELECT CASE (mysystem)
+            CASE ("maxdLqdt") 
+   !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_gradJ.nc"
+               filename = ConstraintDir//"gradJ.nc"   ! Newly added on May 8, 2017
+               fx = myfield(:,:,:,1)
+               fy = myfield(:,:,:,2)
+               fz = myfield(:,:,:,3)
+
+               CALL save_field_R3toR3_ncdf(fx,fy,fz,"gradJ_x", "gradJ_y", "gradJ_z", filename, "netCDF")
+
             CASE ("maxdEdt") 
 !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_gradJ.nc"
               filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_gradJ.nc"   ! Newly added on May 8, 2017
@@ -148,7 +157,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
               
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"
-          filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagScalar.nc"   ! Newly added on May 8, 2017
 
           CALL save_field_R3toRn_ncdf(myfield, numFields, myFieldNames, filename)
 
@@ -179,7 +188,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields.dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
@@ -204,18 +213,19 @@ MODULE data_ops
  
           REAL(pr), DIMENSION(1:n(1),1:2), INTENT(IN) :: mydata
           CHARACTER(200) :: filename
-          character(10) :: dealiasing_str
+          !character(10) :: dealiasing_str
           CHARACTER(*) :: name
           INTEGER :: i
 
 
-          if(toDealias) then
-            dealiasing_str = "deal_"
-          else
-            dealiasing_str = "noDeal_"
-          end if
+          !if(toDealias) then
+          !  dealiasing_str = "deal_"
+          !else
+          !  dealiasing_str = "noDeal_"
+          !end if
 
-          filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
+          !filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
+          filename = ConstraintDir//name//"_spectrum.dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)
@@ -699,8 +709,8 @@ MODULE data_ops
 
          character(4) :: lebesgueQtxt
          WRITE(lebesgueQtxt, '(F4.1)') lebesgueQ
+         if(lebesgueQ<10) lebesgueQtxt(:)="0"//lebesgueQtxt(2:)
          
-
 
          filename = HomeDir//"q"//trim(lebesgueQtxt)//"_"//"results.dat"
          
@@ -745,18 +755,75 @@ MODULE data_ops
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//myOptimType//"_IG"//IGtxt//"_iter_info.dat"
           !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
-          filename = HomeDir//"iteration_info.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"iteration_info.dat"   ! Newly added on May 8, 2017
           
           IF (iter == 0) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
              WRITE(10,*) "# Iter  Tau  Beta  J  Ener  Ens  Div_L2norm  visc_R  NL_R Heli_R"   ! Newly added H_R, means helicity term in the objective function R
-          ELSE
-             OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+             CLOSE(10)
           END IF
+
+          OPEN(10, FILE = filename, FORM = 'FORMATTED', POSITION = 'APPEND')
           WRITE(10, "(I5.4, 9 G20.12)") iter, tau, beta, J, SUM(ener), SUM(ens), L2div, dEdt_visc, dEdt_NL, dEdt_Heli
           CLOSE(10)
 
         END SUBROUTINE save_diagnostics_optim
+
+         !===========================================================
+         ! Create constraint B directory
+         !===========================================================
+         subroutine initializeConstraintDirectory()
+            use global_variables
+            implicit none
+
+            character(200) :: constParDir
+            character(2) :: bIterTxt
+            character(7) :: Btxt
+
+            write(bIterTxt, '(i2.2)') B_list_iterator
+            write(bTxt, '(ES7.1)') constraintB
+            
+            !create parent directory
+            constParDir=trim(HomeDir//"constraintDirs/")
+            call createDirectoryIfNonExistent(trim(constParDir))
+   
+            !create constraint directory
+            ConstraintDir = trim(constParDir)//"B"//bIterTxt//"_"//bTxt//"/"
+            call createDirectoryIfNonExistent(trim(ConstraintDir))
+
+         end subroutine initializeConstraintDirectory
+
+ 
+        !===========================================================
+        ! create directory
+        !===========================================================
+         subroutine createDirectoryIfNonExistent(fullDir)
+            use global_variables
+            use mpi
+            implicit none
+            character(len=*), intent(in) :: fullDir
+            integer :: status
+            logical :: dirExists
+
+            CALL mpi_barrier(mpi_comm_world, statinfo)
+
+            if(rank==0) then
+               !check if exists already
+               inquire(file=trim(fullDir), exist=dirExists)
+
+               if(.not. dirExists) then
+                  print*, "creating dir ", fullDir
+                  status = system( "mkdir " // fullDir )
+                  !print*, "creating dir", fullDir, "status", status
+                  if(status /= 0) then
+                     print*, "mkdir " // fullDir // " failed"
+                  end if
+               end if
+            end if
+
+            CALL mpi_barrier(mpi_comm_world, statinfo)
+         end subroutine createDirectoryIfNonExistent
+
  
         !===========================================================
         ! SAVE POINTS IN PHYSICAL SPACE THAT MAKE THE RINGS
@@ -780,7 +847,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_ringLocation.dat"
-          filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_ringLocation.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"ringLocation.dat"   ! Newly added on May 8, 2017
 
           IF (myflag==1) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
@@ -1078,33 +1145,36 @@ MODULE data_ops
         !============================================
         ! SAVE LINE MINIMIZATION DATA
         !============================================
-        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, mymode)
+        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, mymode)
           USE global_variables
           IMPLICIT NONE
           INCLUDE "mpif.h"
           
           REAL(pr), INTENT(IN) :: tA, tB, tC, FA, FB, FC
-          INTEGER, INTENT(IN) :: iter
+          INTEGER, INTENT(IN) :: iter, optimizationIter
           CHARACTER(len=*), INTENT(IN) :: mysystem
           CHARACTER(len=*), INTENT(IN) :: mymode
 
           CHARACTER(200) :: filename
           CHARACTER(2) :: K0txt, E0txt, IGtxt
-          CHARACTER(4) :: itertxt
+          CHARACTER(3) :: optimizationIterTxt
 !          CHARACTER(2) :: WEIGHTtxt
 
           WRITE(K0txt,'(i2.2)') K0_index
           WRITE(E0txt,'(i2.2)') E0_index
           WRITE(IGtxt,'(i2.2)') iguess
-          WRITE(itertxt,'(i2.2)') iter
+          WRITE(optimizationIterTxt,'(i3.3)') optimizationIter
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
+
+          call createDirectoryIfNonExistent(ConstraintDir//"tau_data")
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
-             filename = HomeDir//"lineMin_info.dat"
+             filename = ConstraintDir//"tau_data/"//"lineMin_info_"//optimizationIterTxt//".dat"
              SELECT CASE (mymode)
                CASE ("replace")
                  OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+                 WRITE(10, "(G5.4, 6 G20.12)") "iter", "tA", "tB", "tC", "FA", "FB", "FC"
                CASE ("append")
                 OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
              END SELECT
@@ -1136,7 +1206,7 @@ MODULE data_ops
           end if
 
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
-          filePath = HomeDir//trim(dealiasing_str)//fileName
+          filePath = HomeDir//"KappaTest"//trim(dealiasing_str)//fileName
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -1214,17 +1284,15 @@ MODULE data_ops
             CASE (15)
                error_string = " FixK0E0: Could not bracket minimum. Trying tau = TauMax..."
 
-
           END SELECT
 
 
           IF (rank==0) THEN   
-            OPEN(10, FILE=HomeDir//"/optimization.log", POSITION='APPEND')
+            OPEN(10, FILE=ConstraintDir//"optimization.log", POSITION='APPEND')
             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
             WRITE(10,*) "      Error during optimization. "//error_string
             CLOSE(10)
           END IF 
-          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
         END SUBROUTINE optim_error_handle
 
@@ -1274,7 +1342,7 @@ MODULE data_ops
 
           IF (rank==0) THEN   
             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-            OPEN(10, FILE=HomeDir//"/optimization.log", POSITION='APPEND')
+            OPEN(10, FILE=ConstraintDir//"optimization.log", POSITION='APPEND')
             WRITE(10,*) msg_string
             CLOSE(10)
           END IF 

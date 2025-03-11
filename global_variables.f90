@@ -3,19 +3,23 @@ MODULE global_variables
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
-  INTEGER, PARAMETER :: MAX_ITER = 1000                !original 1000 ! Maximal iterations of maxdEdt
+  INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  INTEGER, PARAMETER :: KappaPoints = 16
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-8_pr
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-10_pr            !original 1.0e-8_pr 
   REAL(pr), PARAMETER :: CONSTR_TOL = 1.0e-10_pr
-  REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr 
-  REAL(pr), PARAMETER :: TAU_MAX = 10.0_pr              ! Maximal step (original 10.0_pr)
+  REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr
 
-  CHARACTER(len=*), parameter :: HomeDir = "./output/"   ! Newly added on May 8, 2017, for setting directory
+  CHARACTER(len=*), parameter :: HomeDir = "./output/"
+  CHARACTER(len=:), allocatable :: ConstraintDir
+
+  logical :: verboseOptimization = .false.                 ! verbosely output stuff to terminal
+  logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal
+
 
   LOGICAL :: kappaTest = .false.
   LOGICAL :: toDealias = .true.
+  LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau) 
   LOGICAL :: save_diag_NS = .true.
   LOGICAL :: save_data_NS = .true.
   LOGICAL :: save_diag_Constr = .true.

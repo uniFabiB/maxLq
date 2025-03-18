@@ -5,7 +5,7 @@ MODULE global_variables
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
   INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-10_pr            !original 1.0e-8_pr 
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-3_pr            !original 1.0e-8_pr 
   REAL(pr), PARAMETER :: CONSTR_TOL = 1.0e-10_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr
@@ -17,7 +17,7 @@ MODULE global_variables
   logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal
 
 
-  LOGICAL :: kappaTest = .false.
+  LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau) 
   LOGICAL :: save_diag_NS = .true.

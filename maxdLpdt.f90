@@ -55,7 +55,7 @@
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
       iguess = 50
-      RESOL = 32
+      RESOL = 64
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
       lebesgueQ = 5.0_pr
@@ -83,6 +83,7 @@
       !=============================================
       CALL initialize()
       call init_fft()
+      call createDirectoryIfNonExistent(HomeDir)
 
       !=============================================
       ! Set initial Uvec
@@ -96,10 +97,10 @@
       !=========================================================
       ! Create B value and result list
       !=========================================================
-      allocate( B_list(0:3) )
+      allocate( B_list(0:20) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
       do B_list_iterator=0,size(B_list)-1
-         B_list(B_list_iterator) = 10.0_pr**(2.0_pr+real(B_list_iterator,pr)/5.0_pr)
+         B_list(B_list_iterator) = 10.0_pr**(-2.0_pr+real(B_list_iterator,pr))
       end do
 
       !=========================================================

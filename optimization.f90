@@ -20,7 +20,7 @@ module optimization
          REAL(pr), DIMENSION(1:2) :: tau_brack
          REAL(pr), DIMENSION(1:3) :: dLqdt
 
-         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag
+         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, while_flag
 
          ALLOCATE( gradJ0(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
@@ -89,7 +89,8 @@ module optimization
             CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
          end if
 
-         DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) )
+         while_flag = 0
+         DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
 
             !======================================================
@@ -116,7 +117,7 @@ module optimization
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "projecting"
             inner = global_summed_field_inner_product(gradJ1,unit_normal,"H_l^((3q-1)/(2q))")                  ! < nabla J, n >_{H_l^...}
-            gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
+            !gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
             call div_free(gradJ1)                                                                              ! project average free, div free
             
 
@@ -132,8 +133,8 @@ module optimization
             ! Descend Direction
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "direction"
-            d1(:,:,:,:) = gradJ1(:,:,:,:) + beta*vecTransported_d0
-
+            d1(:,:,:,:) = gradJ1(:,:,:,:)! + beta*vecTransported_d0(:,:,:,:)
+            
             !===========================================
             ! GET DIAGNOSTICS OF ASCENT DIRECTION AND SAVE
             !===========================================
@@ -150,7 +151,7 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "find tau"
 
             CALL optim_msg_handle(20) 
-            tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, tau0, mnbrak_flag)
+            tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, 1.5*tau0, mnbrak_flag)
             if(rank==0 .and. tauDebugToConsole) print*, achar(9), "iter", iter, "tau_brack",tau_brack
 
             IF (mnbrak_flag /= 0) THEN
@@ -171,7 +172,8 @@ module optimization
                      CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
                   END IF
                END IF
-               RETURN
+               while_flag = 1
+               exit  !exits loop 
             ELSE
                CALL optim_msg_handle(21)
             END If
@@ -181,7 +183,12 @@ module optimization
 
             tau1 = brent(iter, "maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
             if(rank==0 .and. tauDebugToConsole) print*, achar(9), "iter", iter, "used tau (tau1)",tau1
-            CALL optim_msg_handle(31)
+            if(tau1>tau_brack(2)/1.01) then
+               CALL optim_msg_handle(32)     ! Optimal tau is too large
+               if(rank==0 .and. tauDebugToConsole) print*, "WARNING! brent tau", tau1, "is too large!"
+            else
+               CALL optim_msg_handle(31)
+            end if
 
 
             !IF (rank==0) print*, "tau1", tau1
@@ -202,6 +209,7 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "update u"
             Uvec = Uvec + tau1*d1
             call rescaleLqNorm(uvec, lebesgueQ, constraintB)
+         
             !test = calc_global_Lq_norm(Uvec, lebesgueQ)
             !if(rank==0) print*, "uvec Lq norm", test, "B", constraintB
 
@@ -232,6 +240,7 @@ module optimization
                 CALL optim_msg_handle(0)
                 if(rank==0) print*, "WARNING! Cost functional not increasing, exiting"
                 !save_data_optim = .FALSE.
+                while_flag = 0
                 EXIT
             ELSE
                !save_data_optim = .TRUE.
@@ -261,7 +270,7 @@ module optimization
 
 
          if(rank==0) then
-            if(iter<MAX_ITER) then
+            if(iter<MAX_ITER .and. while_flag<1) then
                print*, "optimization terminated successful after", iter, "iterations"
             if(rank==0) print*, achar(9), "iter final =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
             else
@@ -368,8 +377,26 @@ module optimization
 
       ALLOCATE( phi_bar(1:n(1),1:n(2),1:local_N,1:3) )
 
+
+
+      if(mnbra_calcSaveAllJvalues) then
+         tB = MAX(5.0*tB0, MACH_EPSILON)
+         phi_bar = phi + tB*grad
+         FB = eval_J(phi_bar, "LineMin")
+         IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, optimizationIter, mysystem, "replace")
+         DO WHILE (tB > MACH_EPSILON) 
+            tB = CGOLD*tB
+            phi_bar = phi + tB*grad
+            FB = eval_J(phi_bar, "LineMin")
+            FuncEval = FuncEval+1
+            IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, optimizationIter, mysystem, "append")
+         END DO
+         tB = MAX(tB0, MACH_EPSILON)
+      end if
+
+
       FuncEval = 0
-      iter = 0
+      iter = 0      
  
       tA = tA0
       tB = MAX(tB0, MACH_EPSILON)
@@ -382,20 +409,8 @@ module optimization
       FB = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
+
       IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "replace")
- 
-
-      if(mnbra_calcSaveAllJvalues) then
-         DO WHILE (tB > MACH_EPSILON) 
-            tB = CGOLD*tB
-            phi_bar = phi + tB*grad
-            FB = eval_J(phi_bar, "LineMin")
-            FuncEval = FuncEval+1
-            IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "append")
-         END DO
-         tB = MAX(tB0, MACH_EPSILON)
-      end if
-
 
       DO WHILE (FB > FA .AND. tB > MACH_EPSILON) 
          tB = CGOLD*tB
@@ -508,6 +523,7 @@ module optimization
       USE global_variables
       USE data_ops
       USE function_ops
+      use mpi
       IMPLICIT NONE
 
       INTEGER, INTENT(IN) :: iteration
@@ -553,12 +569,17 @@ module optimization
       !filename = HomeDir//"/brent_info"//".dat"
       filename = ConstraintDir//"tau_data/"//"brent_info_"//itertxt//".dat"
       !filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
-      OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-      WRITE(10, "(3 G20.12)") "#", "Tau", "J" 
+ 
       phi_bar = phi + D*grad
       FX = eval_J(phi_bar, "LineMin")
-      WRITE(10, "(3 G20.12)") 0.0, D, FX
-      CLOSE(10)
+
+      if(rank==0) then
+         OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+         WRITE(10, "(3 G20.12)") "#", "Tau", "J"
+         WRITE(10, "(3 G20.12)") 0.0, D, FX
+         CLOSE(10)
+      end if
+      call mpi_barrier(mpi_comm_world, statinfo)
       
       phi_bar = phi + X*grad
       FX = eval_J(phi_bar, "LineMin")
@@ -569,9 +590,13 @@ module optimization
 
       DO j=1,ITMAX
 
-         OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-         WRITE(10, "(3 G20.12)") j, X, FX
-         CLOSE(10)
+
+         if(rank==0) then
+            OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+            WRITE(10, "(3 G20.12)") j, X, FX
+            CLOSE(10)
+         end if
+         call mpi_barrier(mpi_comm_world, statinfo)
 
          XM = 0.5_pr*(A+B)
          TOL1 = TOL*ABS(X)+ZEPS
@@ -652,6 +677,14 @@ module optimization
             END IF
          END IF
       END DO
+
+
+      if(rank==0) then
+         OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+         WRITE(10, "(3 G20.12)") 999, X, FX
+         CLOSE(10)
+      end if
+      call mpi_barrier(mpi_comm_world, statinfo)
 
       DEALLOCATE( phi_bar )
 

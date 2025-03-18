@@ -714,8 +714,9 @@ MODULE data_ops
 
          filename = HomeDir//"q"//trim(lebesgueQtxt)//"_"//"results.dat"
          
+         if(rank==0 .and. verboseOptimization) print*, "saving results to ", filename
+         
          if(rank==0) then
-
             if(B_list_iterator==0) then
                OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
                !WRITE(10,*) "# B  J1 iter"
@@ -757,7 +758,7 @@ MODULE data_ops
           !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
           filename = ConstraintDir//"iteration_info.dat"   ! Newly added on May 8, 2017
           
-          IF (iter == 0) THEN
+          IF (iter == 1) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
              WRITE(10,*) "# Iter  Tau  Beta  J  Ener  Ens  Div_L2norm  visc_R  NL_R Heli_R"   ! Newly added H_R, means helicity term in the objective function R
              CLOSE(10)
@@ -1170,7 +1171,11 @@ MODULE data_ops
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
-             filename = ConstraintDir//"tau_data/"//"lineMin_info_"//optimizationIterTxt//".dat"
+             if(iter<0) then
+               filename = ConstraintDir//"tau_data/"//"all_J_info_"//optimizationIterTxt//".dat"
+             else
+               filename = ConstraintDir//"tau_data/"//"lineMin_info_"//optimizationIterTxt//".dat"
+             end if
              SELECT CASE (mymode)
                CASE ("replace")
                  OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -1205,8 +1210,9 @@ MODULE data_ops
             dealiasing_str = "noDeal_"
           end if
 
+
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
-          filePath = HomeDir//"KappaTest"//trim(dealiasing_str)//fileName
+          filePath = ConstraintDir//"KappaTest"//trim(dealiasing_str)//fileName
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')

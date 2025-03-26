@@ -6,11 +6,11 @@ MODULE data_ops
         !==============================
         ! SAVE CONTROL VARIABLE
         !==============================
-        SUBROUTINE save_Ctrl(U, W, myindex, mysystem)
+        SUBROUTINE save_Ctrl(U, myindex, mysystem)
           USE global_variables
           IMPLICIT NONE
   
-          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: U, W
+          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: U
           INTEGER, INTENT(IN) :: myindex
           CHARACTER(len=*), INTENT(IN) :: mysystem
 
@@ -38,6 +38,12 @@ MODULE data_ops
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
                CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
+            case ("maxdLqdt_result")
+               filename = ConstraintDir//"u_result.nc"   ! Newly added on May 8, 2017
+               fx = U(:,:,:,1)
+               fy = U(:,:,:,2)
+               fz = U(:,:,:,3)
+               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             CASE ("maxdEdt") 
 !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
               filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
@@ -47,10 +53,10 @@ MODULE data_ops
               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
 
 !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-              filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
-              fx = W(:,:,:,1)
-              fy = W(:,:,:,2)
-              fz = W(:,:,:,3)
+              !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
+              !fx = W(:,:,:,1)
+              !fy = W(:,:,:,2)
+              !fz = W(:,:,:,3)
 !              CALL save_field_R3toR3_ncdf(fx,fy,fz,"Wx", "Wy", "Wz", filename, "netCDF")
 
             CASE ("FixK0E0")
@@ -62,11 +68,11 @@ MODULE data_ops
               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
 
 !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_FixK0E0_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-              filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
-              fx = W(:,:,:,1)
-              fy = W(:,:,:,2)
-              fz = W(:,:,:,3)
-              CALL save_field_R3toR3_ncdf(fx,fy,fz,"Wx", "Wy", "Wz", filename, "netCDF")
+              !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
+              !fx = W(:,:,:,1)
+              !fy = W(:,:,:,2)
+              !fz = W(:,:,:,3)
+              !CALL save_field_R3toR3_ncdf(fx,fy,fz,"Wx", "Wy", "Wz", filename, "netCDF")
 
           END SELECT 
           DEALLOCATE( fx )

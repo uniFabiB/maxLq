@@ -3,9 +3,9 @@ MODULE global_variables
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
-  INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
+  INTEGER, PARAMETER :: MAX_ITER = 50                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-3_pr            !original 1.0e-8_pr 
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-5_pr            !original 1.0e-8_pr 
   REAL(pr), PARAMETER :: CONSTR_TOL = 1.0e-10_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr
@@ -17,9 +17,9 @@ MODULE global_variables
   logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal
 
 
-  LOGICAL :: kappaTest = .true.
+  LOGICAL :: kappaTest = .false.
   LOGICAL :: toDealias = .true.
-  LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau) 
+  LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau) 
   LOGICAL :: save_diag_NS = .true.
   LOGICAL :: save_data_NS = .true.
   LOGICAL :: save_diag_Constr = .true.
@@ -40,7 +40,7 @@ MODULE global_variables
   integer :: B_list_iterator
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
-  REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec, Wvec
+  REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec
 
   real(pr) :: viscCoefficient = 1.0_pr                                          ! for debugging to turn on and off the viscocity/pressure terms
   real(pr) :: pressureCoefficient = 1.0_pr                                      ! for debugging to turn on and off the viscocity/pressure terms

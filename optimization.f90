@@ -57,7 +57,6 @@ module optimization
          CALL MPI_ALLREDUCE(local_field_L2norm, K, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
 
-
          CALL divergence(Uvec, f_scalar)
          local_scalar_L2norm = inner_product(f_scalar, f_scalar, "L2")
          CALL MPI_ALLREDUCE(local_scalar_L2norm, divU_L2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo) 
@@ -81,7 +80,13 @@ module optimization
          vecTransported_GradJ0 = 0.0_pr
          vecTransported_d0 = 0.0_pr
          tau0 = 10.0_pr**(-4.0_pr)
-         tau1 = tau0
+         tau1 = tau0       
+         if(rank==0) print*, achar(9), "iter =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
+         IF (save_diag_Optim) THEN
+            IF (rank==0) THEN
+               CALL save_diagnostics_optim("maxdLqdt", iter, 0.0_pr, 0.0_pr, J0, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)   
+            END IF
+         END IF
          
          if (kappaTest) then
             J0 = eval_J(Uvec, "maxdLqdt")
@@ -90,8 +95,11 @@ module optimization
          end if
 
          while_flag = 0
+
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
+            if(rank==0) print*, iter, "iteration"
+
 
             !======================================================
             ! CALCULATE BASIC GRADIENT IN THE H^s TOPOLOGY
@@ -117,7 +125,7 @@ module optimization
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "projecting"
             inner = global_summed_field_inner_product(gradJ1,unit_normal,"H_l^((3q-1)/(2q))")                  ! < nabla J, n >_{H_l^...}
-            !gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
+            gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
             call div_free(gradJ1)                                                                              ! project average free, div free
             
 
@@ -133,7 +141,7 @@ module optimization
             ! Descend Direction
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "direction"
-            d1(:,:,:,:) = gradJ1(:,:,:,:)! + beta*vecTransported_d0(:,:,:,:)
+            d1(:,:,:,:) = gradJ1(:,:,:,:) + beta*vecTransported_d0(:,:,:,:)
             
             !===========================================
             ! GET DIAGNOSTICS OF ASCENT DIRECTION AND SAVE
@@ -152,7 +160,6 @@ module optimization
 
             CALL optim_msg_handle(20) 
             tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, 1.5*tau0, mnbrak_flag)
-            if(rank==0 .and. tauDebugToConsole) print*, achar(9), "iter", iter, "tau_brack",tau_brack
 
             IF (mnbrak_flag /= 0) THEN
                IF (rank==0) THEN
@@ -182,10 +189,12 @@ module optimization
             CALL optim_msg_handle(30)
 
             tau1 = brent(iter, "maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
-            if(rank==0 .and. tauDebugToConsole) print*, achar(9), "iter", iter, "used tau (tau1)",tau1
-            if(tau1>tau_brack(2)/1.01) then
-               CALL optim_msg_handle(32)     ! Optimal tau is too large
-               if(rank==0 .and. tauDebugToConsole) print*, "WARNING! brent tau", tau1, "is too large!"
+            if(tau1>tau_brack(2)) then
+               if(rank==0 .and. tauDebugToConsole) print*, "warning! brent tau", tau1, "> tau brak(2)", tau_brack(2)
+               if(tau1>2.0*tau_brack(2)) then
+                  CALL optim_msg_handle(32)     ! Optimal tau is too large
+                  if(rank==0 .and. tauDebugToConsole) print*, "WARNING! brent tau", tau1, "is too large!"
+               end if
             else
                CALL optim_msg_handle(31)
             end if
@@ -239,6 +248,10 @@ module optimization
                 END IF
                 CALL optim_msg_handle(0)
                 if(rank==0) print*, "WARNING! Cost functional not increasing, exiting"
+                if(rank==0 .and. tauDebugToConsole) then
+                  print '(4G20.12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)"
+                  print '(4G20.12)', achar(9), tau_brack(1), tau1, tau_brack(2)
+                end if
                 !save_data_optim = .FALSE.
                 while_flag = 0
                 EXIT
@@ -260,7 +273,8 @@ module optimization
             ! UPDATE OLD VARIABLES
             !===============================   
             if(rank==0 .and. verboseOptimization) print*, "update old variables"
-            if(rank==0) print*, achar(9), "iter =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
+            if(rank==0) print '(7G20.12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1"
+            if(rank==0) print '(7G20.12)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1
             J0 = J1
             gradJ0 = gradJ1
             tau0 = tau1
@@ -281,13 +295,8 @@ module optimization
 
          IF (save_data_Optim) THEN
             if(rank==0 .and. verboseOptimization) print*, "saving data optim"
-            CALL vel2vort(Uvec, Wvec)
-            CALL diagnosticScalars(Uvec, Wvec, iter)
-
-            IF (MOD(iter,1)==0) THEN
-               CALL save_Ctrl(Uvec, Wvec, iter, "maxdLqdt")
-            END IF
-
+            CALL diagnosticScalars(Uvec, iter)
+            CALL save_Ctrl(Uvec, iter, "maxdLqdt_result")
          END IF
 
          CALL optim_msg_handle(1)

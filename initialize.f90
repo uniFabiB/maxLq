@@ -14,8 +14,7 @@ SUBROUTINE initialize
    total_local_size = n(1)*n(2)*local_N
 
    ALLOCATE( Uvec(1:n(1),1:n(2),1:local_N,1:3) )
-   ALLOCATE( Wvec(1:n(1),1:n(2),1:local_N,1:3) )
-
+   
 
    ALLOCATE( K1(1:n(1)) )
    ALLOCATE( K2(1:n(2)) )

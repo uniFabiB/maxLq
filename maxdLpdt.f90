@@ -51,14 +51,16 @@
       ! iguess 4 = load random expSpec a
       ! iguess 5 = load random polySpec a
       ! iguess 6 = load random k a
-      ! iguess 10 = load previous (not working)
+      ! iguess 10 = load previous (filename = nXYZ_nice.nc)
       ! iguess 50 = Arnold-Beltrami-Childress, ...
+      ! iguess 9 = load temp
       !=============================================
-      iguess = 50
-      RESOL = 64
+      iguess = 9
+      RESOL = 128
+      visc = 0.05_pr
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 5.0_pr
+      lebesgueQ = 4.0_pr
 
       lambda1  = 1.0_pr  ! Newly added on Otc 05, 2017
       lambda2  = 0.0_pr  ! We are using H^s with 0<s<2 and do not have H^2, so we do not need this !OLD I changed this velue on March 5, 2017; lambda2 is the value in Sobolev norm
@@ -100,7 +102,7 @@
       allocate( B_list(0:20) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
       do B_list_iterator=0,size(B_list)-1
-         B_list(B_list_iterator) = 10.0_pr**(-2.0_pr+real(B_list_iterator,pr))
+         B_list(B_list_iterator) = 10.0_pr**(0.2_pr+real(B_list_iterator,pr)/10.0)
       end do
 
       !=========================================================

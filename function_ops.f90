@@ -23,8 +23,7 @@ module function_ops
                         !         CHARACTER(2) :: WEIGHTtxt                           ! WEIGHTtxt is newly added on April 24, 2017
          CHARACTER(4) :: Ntxt
          REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux, Uy, Uz
-         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: Wx, Wy, Wz
-         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux_hat, Uy_hat, Uz_hat, Wx_hat, Wy_hat, Wz_hat
+         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux_hat, Uy_hat, Uz_hat
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
          real(pr), dimension(:,:,:,:), allocatable :: auxVec
          
@@ -36,9 +35,6 @@ module function_ops
          ALLOCATE( Ux(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( Uy(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( Uz(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( Wx(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( Wy(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( Wz(1:n(1),1:n(2),1:local_N) )
 
 
          dx = 1.0_pr/REAL(n, pr)
@@ -91,43 +87,24 @@ module function_ops
             case (6)
                call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
 
+            CASE (9)                                 ! Can be used when recover from the terminated code
+               !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
+               filename = "./input/n128_visc0.05_B10**0.25_result.nc"
+               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+               
 
             CASE (10)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
-               filename = "./input/FRT_N256E500T017_Uvec_fwdTE0220.nc"
+               select case (n(1))
+               case (64)
+                  filename = "./input/n64_nice.nc"
+               case (128)
+                  filename = "./input/n128_nice.nc"
+               case default
+                  if(rank==0) print*, "ERROR FILE NOT FOUND"
+                  return
+               end select
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
-
-               Ux = Uvec(:,:,:,1)
-               !CALL dealiasing(Ux) ! commented out by fb
-               Uvec(:,:,:,1) = Ux
-
-               Uy = Uvec(:,:,:,2)
-               !CALL dealiasing(Uy) ! commented out by fb
-               Uvec(:,:,:,2) = Uy
-
-               Uz = Uvec(:,:,:,3)
-               !CALL dealiasing(Uz) ! commented out by fb
-               Uvec(:,:,:,3) = Uz
-
-               CALL div_free(Uvec)   
-               CALL vel2vort(Uvec, Wvec)
-
-               Wx = Wvec(:,:,:,1)
-               Wy = Wvec(:,:,:,2)
-               Wz = Wvec(:,:,:,3)
-               IF (save_data_Optim) THEN
-                  WRITE(K0txt, '(i2.2)') K0_index
-                  WRITE(E0txt, '(i2.2)') E0_index
-                  WRITE(IGtxt, '(i2.2)') iguess
-                        !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc" 
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-               END IF
-
             CASE (50)                                   ! Arnold-Beltrami-Childress (ABC) flow
                DO kk=1, local_N
                   DO jj=1, n(2)
@@ -142,27 +119,9 @@ module function_ops
                      END DO
                   END DO
                END DO
-               Uvec(:,:,:,1) = Ux
-               Uvec(:,:,:,2) = Uy
-               Uvec(:,:,:,3) = Uz
-               CALL vel2vort(Uvec, Wvec)
-               Wx = Wvec(:,:,:,1)
-               Wy = Wvec(:,:,:,2)
-               Wz = Wvec(:,:,:,3)
-               read_from_file = .FALSE.
-               IF (save_data_Optim) THEN
-                  WRITE(K0txt, '(i2.2)') K0_index
-                  WRITE(E0txt, '(i2.2)') E0_index
-                  WRITE(IGtxt, '(i2.2)') iguess
-                        !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-               END IF
-
+               uvec(:,:,:,1) = ux(:,:,:)
+               uvec(:,:,:,2) = uy(:,:,:)
+               uvec(:,:,:,3) = uz(:,:,:)
 
             CASE (51)                                   ! Arnold-Beltrami-Childress (ABC) flow, plus perturbation
                DO kk=1, local_N
@@ -200,24 +159,6 @@ module function_ops
                Uvec(:,:,:,2) = Uy
                Uvec(:,:,:,3) = Uz
                CALL div_free(Uvec)   
-               CALL vel2vort(Uvec,Wvec)
-               Wx = Wvec(:,:,:,1)
-               Wy = Wvec(:,:,:,2)
-               Wz = Wvec(:,:,:,3)
-
-               read_from_file = .FALSE.
-               IF (save_data_Optim) THEN
-                  WRITE(K0txt, '(i2.2)') K0_index
-                  WRITE(E0txt, '(i2.2)') E0_index
-                  WRITE(IGtxt, '(i2.2)') iguess
-                        !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                  filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                  CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-               END IF
 
             CASE (60)                              ! I added on Feb 23, 2017; Arnold-Beltrami-Childress (ABC) flow. Modified on March 16, 2017, add read file data; Discuss with Diego
                if (E0_index .eq. 12) then
@@ -238,23 +179,6 @@ module function_ops
                   Uvec(:,:,:,1) = Ux
                   Uvec(:,:,:,2) = Uy
                   Uvec(:,:,:,3) = Uz
-                  CALL vel2vort(Uvec,Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-                  read_from_file = .FALSE.
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
                else
                   WRITE(K0txt,'(i2.2)') K0_index
                   WRITE(E0txt,'(i2.2)') E0_index-1
@@ -276,23 +200,7 @@ module function_ops
                   !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
-                  CALL div_free(Uvec)   
-                  CALL vel2vort(Uvec, Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
+                  CALL div_free(Uvec)
                end if
 
             CASE (61)                              !Initial guess is a perturbation of Case(60), with start from obtained velocity
@@ -332,23 +240,6 @@ module function_ops
                   Uvec(:,:,:,2) = Uy
                   Uvec(:,:,:,3) = Uz
                   CALL div_free(Uvec)   
-                  CALL vel2vort(Uvec,Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
                else
                   WRITE(K0txt,'(i2.2)') K0_index
                   WRITE(E0txt,'(i2.2)') E0_index-1
@@ -371,24 +262,7 @@ module function_ops
                   Uvec(:,:,:,3) = Uz
 
                   CALL div_free(Uvec)   
-                  CALL vel2vort(Uvec, Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
                end if
-
 
             CASE (62)                           !Initial guess is a perturbation of Case(60), with start from obtained velocity, plus perturbation
                if (E0_index .eq. 1) then
@@ -427,23 +301,6 @@ module function_ops
                   Uvec(:,:,:,2) = Uy
                   Uvec(:,:,:,3) = Uz
                   CALL div_free(Uvec)   
-                  CALL vel2vort(Uvec,Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
                else
                   WRITE(K0txt,'(i2.2)') K0_index
                   WRITE(E0txt,'(i2.2)') E0_index-1
@@ -482,33 +339,20 @@ module function_ops
                   END DO
 
                   CALL div_free(Uvec)   
-                  CALL vel2vort(Uvec, Wvec)
-                  Wx = Wvec(:,:,:,1)
-                  Wy = Wvec(:,:,:,2)
-                  Wz = Wvec(:,:,:,3)
-                  IF (save_data_Optim) THEN
-                     WRITE(K0txt, '(i2.2)') K0_index
-                     WRITE(E0txt, '(i2.2)') E0_index
-                     WRITE(IGtxt, '(i2.2)') iguess
-                        !                     WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Ux, Uy, Uz, "Ux", "Uy", "Uz", filename, "netCDF")
-                        !                     filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-                     filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"                           ! Newly added on May 8, 2017
-                     CALL save_field_R3toR3_ncdf(Wx, Wy, Wz, "Wx", "Wy", "Wz", filename, "netCDF")
-                  END IF
                end if
 
            END SELECT
+
+
+            IF (save_data_Optim) then
+               filename = HomeDir//"u0.nc"                           ! Newly added on May 8, 2017
+               CALL save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
+            END IF
 
                         ! Deallocate variables
            DEALLOCATE( Ux )
            DEALLOCATE( Uy )
            DEALLOCATE( Uz )
-           DEALLOCATE( Wx )
-           DEALLOCATE( Wy )
-           DEALLOCATE( Wz )
 
       END SUBROUTINE initial_guess
 
@@ -1725,7 +1569,7 @@ module function_ops
       !============================================================
       !--Diagnostics: |U|, |W|, stretching factor
       !============================================================
-      SUBROUTINE diagnosticScalars(U, W, myIter)
+      SUBROUTINE diagnosticScalars(U, myIter)
          USE global_variables
          USE data_ops
          USE fftwfunction
@@ -1733,7 +1577,7 @@ module function_ops
          IMPLICIT NONE
 
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: U
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: W
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: W
          INTEGER, INTENT(IN) :: myIter
          REAL(pr), DIMENSION(:,:), ALLOCATABLE :: Spectrum
          REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux
@@ -1750,6 +1594,8 @@ module function_ops
 
          ALLOCATE( Spectrum(1:n(1),1:2) )
          CALL calculate_spectral_data(U, Spectrum)
+
+         call vel2vort(u,w)
 
                                  !ALLOCATE( auxVec(1:n(1),1:n(2),1:local_nlast,1:3) )
          ALLOCATE( allDiagFields(1:n(1),1:n(2),1:local_N,1:numDiagFields) )

@@ -1661,8 +1661,8 @@ module function_ops
          allDiagFields(:,:,:,4) = aux
 
 
-         CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore", "maxdEdt")
-         CALL calculateSaveSpectrum(u,"u"//"_bIter"//mybIter//"_final_iter"//myIterString)
+         CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore")
+         CALL calculateSaveSpectrum(u,"u"//"_B"//mybIter//"_final_iter"//myIterString)
 
          IF (rank==0) THEN
             CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)

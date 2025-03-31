@@ -33,13 +33,13 @@ MODULE data_ops
 
           SELECT CASE (mysystem)
             case ("maxdLqdt")
-               filename = ConstraintDir//"u0.nc"   ! Newly added on May 8, 2017
+               filename = ConstraintDir//"u0"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
                CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             case ("maxdLqdt_result")
-               filename = ConstraintDir//"u_result.nc"   ! Newly added on May 8, 2017
+               filename = ConstraintDir//"u_result"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
@@ -111,7 +111,7 @@ MODULE data_ops
           SELECT CASE (mysystem)
             CASE ("maxdLqdt") 
    !              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_gradJ.nc"
-               filename = ConstraintDir//"gradJ.nc"   ! Newly added on May 8, 2017
+               filename = ConstraintDir//"gradJ"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
                fx = myfield(:,:,:,1)
                fy = myfield(:,:,:,2)
                fz = myfield(:,:,:,3)
@@ -143,13 +143,13 @@ MODULE data_ops
         !============================
         ! SAVE DIAGNOSTIC SCALARS 
         !============================
-        SUBROUTINE save_diagnosticScalars(myField, numFields, myFieldNames, mysystem)
+        SUBROUTINE save_diagnosticScalars(myField, numFields, myFieldNames)
           USE global_variables  
           IMPLICIT NONE
 
           REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:numFields), INTENT(IN) :: myField
           INTEGER, INTENT(IN) :: numFields
-          CHARACTER(len=*), INTENT(IN) :: myFieldNames, mysystem
+          CHARACTER(len=*), INTENT(IN) :: myFieldNames
 
           CHARACTER(2) :: K0txt
           CHARACTER(2) :: E0txt
@@ -163,7 +163,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
               
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"
-          filename = ConstraintDir//"diagScalar.nc"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagScalar"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
 
           CALL save_field_R3toRn_ncdf(myfield, numFields, myFieldNames, filename)
 
@@ -194,7 +194,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
@@ -210,6 +210,39 @@ MODULE data_ops
  
         END SUBROUTINE save_diagnosticFields_global
 
+
+         !============================================================
+         !          SAVE USED PARAMETERS
+         !============================================================
+         subroutine saveUsedParams()
+            use global_variables
+            character(200) :: filename
+            
+            filename = HomeDir//"params"//".dat"
+
+            if(rank==0) then
+               open(10, file = filename, form = 'FORMATTED', status = 'REPLACE')
+
+               write(10, "(2 G20.12)") "resol", n(1)
+               write(10, "(2 G20.12)") "lebesgueQ", lebesgueQ
+               write(10, "(2 G20.12)") "iguess", iguess
+               write(10, "(2 G20.12)") " ", " "
+               write(10, "(2 G20.12)") "MAX_ITER", MAX_ITER
+               write(10, "(2 G20.12)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
+               write(10, "(2 G20.12)") "OPTIM_TOL", OPTIM_TOL
+               write(10, "(2 G20.12)") "CONSTR_TOL", CONSTR_TOL
+               write(10, "(2 G20.12)") "MACH_EPSILON", MACH_EPSILON
+               write(10, "(2 G20.12)") "J_MAX", J_MAX
+               write(10, "(2 G20.12)") "TAU_MAX", TAU_MAX
+               write(10, "(2 G20.12)") "lambda1", lambda1
+               write(10, "(2 G20.12)") "lambda2", lambda2
+               write(10, "(2 G20.12)") " ", " "
+               write(10, "(2 G20.12)") "viscCoefficient", viscCoefficient
+               write(10, "(2 G20.12)") "pressureCoefficient", pressureCoefficient
+
+               close(10)
+            end if
+         end subroutine
         !============================================================
         !          SAVE SPECTRAL DATA
         !============================================================
@@ -231,7 +264,7 @@ MODULE data_ops
           !end if
 
           !filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
-          filename = ConstraintDir//name//"_spectrum.dat"
+          filename = ConstraintDir//name//"_spectrum"//"_B"//bIterTxt//".dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)
@@ -762,7 +795,7 @@ MODULE data_ops
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//myOptimType//"_IG"//IGtxt//"_iter_info.dat"
           !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
-          filename = ConstraintDir//"iteration_info.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"iteration_info"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
           
           IF (iter == 1) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -784,11 +817,6 @@ MODULE data_ops
             implicit none
 
             character(200) :: constParDir
-            character(2) :: bIterTxt
-            character(7) :: Btxt
-
-            write(bIterTxt, '(i2.2)') B_list_iterator
-            write(bTxt, '(ES7.1)') constraintB
             
             !create parent directory
             constParDir=trim(HomeDir//"constraintDirs/")
@@ -854,7 +882,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_ringLocation.dat"
-          filename = ConstraintDir//"ringLocation.dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"ringLocation"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
 
           IF (myflag==1) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
@@ -1200,13 +1228,12 @@ MODULE data_ops
         !============================================
         ! Save results from kappa test
         !============================================
-        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, myindex, fileName)
+        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, myindex)
           USE global_variables
           IMPLICIT NONE
 
           REAL(pr), INTENT(IN) :: eps, kappa, inner_prod, deltaJ
           INTEGER, INTENT(IN) :: myindex
-          CHARACTER(len=*), INTENT(IN) :: fileName
           CHARACTER(99) :: filePath
           character(10) :: dealiasing_str
 
@@ -1218,7 +1245,8 @@ MODULE data_ops
 
 
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
-          filePath = ConstraintDir//"KappaTest"//trim(dealiasing_str)//fileName
+          !filePath = ConstraintDir//"KappaTest"//trim(dealiasing_str)
+          filePath = ConstraintDir//"kappa"//"_B"//bIterTxt//".dat"
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -1349,12 +1377,14 @@ MODULE data_ops
                msg_string = "      Brent method OK!"
             CASE (32)
                msg_string = "      Optimal tau is too large!"
+            CASE (33)
+               msg_string = "      warning tau > 1"
 
           END SELECT
 
           IF (rank==0) THEN   
             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-            OPEN(10, FILE=ConstraintDir//"optimization.log", POSITION='APPEND')
+            OPEN(10, FILE=ConstraintDir//"optimization"//"_B"//bIterTxt//".log", POSITION='APPEND')
             WRITE(10,*) msg_string
             CLOSE(10)
           END IF 

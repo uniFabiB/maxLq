@@ -45,6 +45,7 @@ module optimization
          !====================================
          if(rank==0 .and. verboseOptimization) print*, "rescaling"
          call rescaleLqNorm(Uvec,lebesgueQ,constraintB)
+         call div_free(uvec)
 
 
 
@@ -201,9 +202,14 @@ module optimization
 
 
             !IF (rank==0) print*, "tau1", tau1
-            !tau1 = MIN(tau1, tau_max)                                  ! TAU_MAX = 10.0_pr
-            !IF (tau1 == TAU_MAX) CALL optim_msg_handle(32)
-
+            if(tau1>tau_max) then
+               if (rank==0) print*, "WARNING: tau1", tau1, "> TAU_MAX", tau_max, " setting tau1=tau_max"
+               call optim_msg_handle(32)
+               tau1 = tau_max
+            elseif(tau1>1.0) then
+               if (rank==0) print*, "slight warning: tau1", tau1, ">1"
+               call optim_msg_handle(32)
+            end if
 
             !======================================
             ! update vector transport for next step with "old" tangentspace at "old" u
@@ -288,7 +294,7 @@ module optimization
                print*, "optimization terminated successful after", iter, "iterations"
             if(rank==0) print*, achar(9), "iter final =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
             else
-               print*, "optimization terminated by max iterations", iter, MAX_ITER
+               print*, "optimization terminated unsuccessful", iter, MAX_ITER
             end if
          end if
 
@@ -804,7 +810,7 @@ module optimization
          deltaJ = J1-J0  
 
          IF (rank==0) THEN
-            CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii, "kappa_q-"//strLebesgueQ//"_"//mysystem//".dat")
+            CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii)
          END IF 
          
 

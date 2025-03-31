@@ -3,19 +3,27 @@ MODULE global_variables
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
-  INTEGER, PARAMETER :: MAX_ITER = 50                   !original 1000 ! Maximal iterations of maxdEdt
+
+  !math params!
+  real(pr), parameter :: visc = 1.0_pr
+  
+  !opt params!
+  INTEGER, PARAMETER :: MAX_ITER = 100                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-5_pr            !original 1.0e-8_pr 
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-4_pr            !original 1.0e-8_pr 
   REAL(pr), PARAMETER :: CONSTR_TOL = 1.0e-10_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
-  REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr
+  REAL(pr), PARAMETER :: J_MAX = 1.0e15_pr                ! not enforced
+  REAL(pr), PARAMETER :: TAU_MAX = 1000.0_pr
 
+  !data params!
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
   CHARACTER(len=:), allocatable :: ConstraintDir
 
+
+  !debug params!
   logical :: verboseOptimization = .false.                 ! verbosely output stuff to terminal
   logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal
-
 
   LOGICAL :: kappaTest = .false.
   LOGICAL :: toDealias = .true.
@@ -31,13 +39,17 @@ MODULE global_variables
   LOGICAL :: add_pert = .false.
   LOGICAL :: parallel_data
 
+
+  !other params!
   INTEGER, DIMENSION(3), SAVE :: n
   INTEGER, SAVE :: K0_index, E0_index, NU_index, iguess, ConsType
-  REAL(pr), SAVE :: E0, K0, PI, visc, lambda2, lambda1, alpha0, dV, Kmax, lebesgueQ
+  REAL(pr), SAVE :: E0, K0, PI, lambda2, lambda1, alpha0, dV, Kmax, lebesgueQ
   real(pr), dimension(:), allocatable, save :: lebesgueQlist
   real(pr), dimension(:,:), allocatable :: optimizationResultList
   real(pr), dimension(:), allocatable :: B_list
   integer :: B_list_iterator
+  character(2) :: bIterTxt
+  character(7) :: Btxt
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
   REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec

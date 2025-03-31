@@ -55,9 +55,8 @@
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       ! iguess 9 = load temp
       !=============================================
-      iguess = 9
-      RESOL = 128
-      visc = 0.05_pr
+      iguess = 50
+      RESOL = 256
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
       lebesgueQ = 4.0_pr
@@ -86,6 +85,7 @@
       CALL initialize()
       call init_fft()
       call createDirectoryIfNonExistent(HomeDir)
+      call saveUsedParams()
 
       !=============================================
       ! Set initial Uvec
@@ -102,7 +102,7 @@
       allocate( B_list(0:20) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
       do B_list_iterator=0,size(B_list)-1
-         B_list(B_list_iterator) = 10.0_pr**(0.2_pr+real(B_list_iterator,pr)/10.0)
+         B_list(B_list_iterator) = 10.0_pr**(-2.0_pr+real(B_list_iterator,pr)/2.0_pr)
       end do
 
       !=========================================================
@@ -110,6 +110,8 @@
       !=========================================================
       do B_list_iterator = 0,size(B_list)-1
          constraintB = B_list(B_list_iterator)
+         write(bIterTxt, '(i2.2)') B_list_iterator
+         write(bTxt, '(ES7.1)') constraintB
          if(rank==0) print*, "constraint B", constraintB
          !=========================================================
          ! OPTIMIZE !

@@ -73,7 +73,7 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
 
 
 
-            if (isnan(real(fu(1,1,1)))) then
+            if ((isnan(real(fu(1,1,1)))) .and. (rank==0)) then
                   print*, "nan in fftwfunction"
             end if
 

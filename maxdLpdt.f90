@@ -24,8 +24,7 @@
       !=============================================
       ! Declare parameters
       !=============================================
-      INTEGER :: RESOL
-
+      
       
 
       !=============================================
@@ -56,18 +55,13 @@
       ! iguess 9 = load temp
       !=============================================
       iguess = 50
-      RESOL = 256
+      bIterOffset = 8       ! should match the loaded iteration or 0 if new
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
       lebesgueQ = 4.0_pr
 
-      lambda1  = 1.0_pr  ! Newly added on Otc 05, 2017
-      lambda2  = 0.0_pr  ! We are using H^s with 0<s<2 and do not have H^2, so we do not need this !OLD I changed this velue on March 5, 2017; lambda2 is the value in Sobolev norm
-
-
-      IF (rank==0) THEN
-         print*, "start"
-      END If
+      
+      IF (rank==0) print*, "start"
 
       !=============================================
       !--If put discretization number before MPI_BARRIER, we have to MPI_BCAST n to all processors
@@ -99,20 +93,25 @@
       !=========================================================
       ! Create B value and result list
       !=========================================================
-      allocate( B_list(0:20) )
+      allocate( B_list(1:32+bIterOffset) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
-      do B_list_iterator=0,size(B_list)-1
-         B_list(B_list_iterator) = 10.0_pr**(-2.0_pr+real(B_list_iterator,pr)/2.0_pr)
+      
+      B_list(1) = 0.1_pr
+      do B_list_iterator=2,size(B_list)
+         constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
+         if(constraintB>30.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+         !if(constraintB>80.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+         B_list(B_list_iterator) = constraintB         
       end do
 
       !=========================================================
       ! Loop over different values of constraint B values
       !=========================================================
-      do B_list_iterator = 0,size(B_list)-1
+      do B_list_iterator = 1+bIterOffset,size(B_list)+bIterOffset
          constraintB = B_list(B_list_iterator)
          write(bIterTxt, '(i2.2)') B_list_iterator
          write(bTxt, '(ES7.1)') constraintB
-         if(rank==0) print*, "constraint B", constraintB
+         if(rank==0) print*, "constraint B"//bIterTxt, constraintB
          !=========================================================
          ! OPTIMIZE !
          !=========================================================
@@ -125,8 +124,6 @@
       CALL MPI_FINALIZE (Statinfo)
       
 
-      IF (rank==0) THEN
-         print*, "end"
-      END If
+      IF (rank==0) print*, "end"
  
    END PROGRAM main

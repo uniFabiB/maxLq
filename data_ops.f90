@@ -163,7 +163,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
               
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"
-          filename = ConstraintDir//"diagScalar"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagScalar"//"-B"//bIterTxt//"-iter-"//optimizationIterationTxt//".nc"   ! Newly added on May 8, 2017
 
           CALL save_field_R3toRn_ncdf(myfield, numFields, myFieldNames, filename)
 
@@ -194,18 +194,18 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields"//"-B"//bIterTxt//"-iter"//optimizationIterationTxt//".dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
           WRITE(10,*) "# x   y   z " 
-          WRITE(10, "(3 G20.12)") K(1), K(2), K(3) 
-          WRITE(10, "(3 G20.12)") E(1), E(2), E(3) 
-          WRITE(10, "(3 G20.12)") Umax(1), Umax(2), Umax(3) 
-          WRITE(10, "(3 G20.12)") Wmax(1), Wmax(2), Wmax(3)
-          WRITE(10, "(3 G20.12)") magUmax, magWmax, H 
-          WRITE(10, "(2 G20.12)") maxHel, minHel
-          WRITE(10, "(2 G20.12)") vorCoreData(1), vorCoreData(2)
+          WRITE(10, "(3 ES20.12)") K(1), K(2), K(3) 
+          WRITE(10, "(3 ES20.12)") E(1), E(2), E(3) 
+          WRITE(10, "(3 ES20.12)") Umax(1), Umax(2), Umax(3) 
+          WRITE(10, "(3 ES20.12)") Wmax(1), Wmax(2), Wmax(3)
+          WRITE(10, "(3 ES20.12)") magUmax, magWmax, H 
+          WRITE(10, "(2 ES20.12)") maxHel, minHel
+          WRITE(10, "(2 ES20.12)") vorCoreData(1), vorCoreData(2)
           CLOSE(10)
  
         END SUBROUTINE save_diagnosticFields_global
@@ -223,22 +223,30 @@ MODULE data_ops
             if(rank==0) then
                open(10, file = filename, form = 'FORMATTED', status = 'REPLACE')
 
-               write(10, "(2 G20.12)") "resol", n(1)
-               write(10, "(2 G20.12)") "lebesgueQ", lebesgueQ
-               write(10, "(2 G20.12)") "iguess", iguess
-               write(10, "(2 G20.12)") " ", " "
-               write(10, "(2 G20.12)") "MAX_ITER", MAX_ITER
-               write(10, "(2 G20.12)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
-               write(10, "(2 G20.12)") "OPTIM_TOL", OPTIM_TOL
-               write(10, "(2 G20.12)") "CONSTR_TOL", CONSTR_TOL
-               write(10, "(2 G20.12)") "MACH_EPSILON", MACH_EPSILON
-               write(10, "(2 G20.12)") "J_MAX", J_MAX
-               write(10, "(2 G20.12)") "TAU_MAX", TAU_MAX
-               write(10, "(2 G20.12)") "lambda1", lambda1
-               write(10, "(2 G20.12)") "lambda2", lambda2
-               write(10, "(2 G20.12)") " ", " "
-               write(10, "(2 G20.12)") "viscCoefficient", viscCoefficient
-               write(10, "(2 G20.12)") "pressureCoefficient", pressureCoefficient
+
+               !ES = nice exponential
+               !A = char
+               !I = integer
+               !G = general
+               write(10, "(A20, I20)") "resol", n(1)
+               write(10, "(A20, ES20.12)") "lebesgueQ", lebesgueQ
+               write(10, "(A20, G20.12)") "iguess", iguess
+               write(10, "(A20)") " "
+               write(10, "(A20, G20.12)") "useOrthogonalGradient", useOrthogonalGradient
+               write(10, "(A20, G20.12)") "useConjugateGradient", useConjugateGradient
+               
+               write(10, "(A20, G20.12)") "useRiemannianGeometry", useRiemannianGeometry
+               write(10, "(A20)") " "
+               write(10, "(A20, G20.12)") "MAX_ITER", MAX_ITER
+               write(10, "(A20, I20)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
+               write(10, "(A20, ES20.12)") "OPTIM_TOL", OPTIM_TOL
+               write(10, "(A20, ES20.12)") "MACH_EPSILON", MACH_EPSILON
+               write(10, "(A20, ES20.12)") "TAU_MAX", TAU_MAX
+               write(10, "(A20, ES20.12)") "lambda1", lambda1
+               write(10, "(A20)") " "
+               write(10, "(A20, ES20.12)") "visc", visc
+               write(10, "(A20, G20.12)") "viscCoefficient", viscCoefficient
+               write(10, "(A20, G20.12)") "pressureCoefficient", pressureCoefficient
 
                close(10)
             end if
@@ -264,11 +272,11 @@ MODULE data_ops
           !end if
 
           !filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
-          filename = ConstraintDir//name//"_spectrum"//"_B"//bIterTxt//".dat"
+          filename = ConstraintDir//name//"-spectrum"//"-B"//bIterTxt//"-iter"//optimizationIterationTxt//".dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)
-             WRITE(10, "(2 G20.12)") mydata(i,1), mydata(i,2)
+             WRITE(10, "(2 ES20.12)") mydata(i,1), mydata(i,2)
           END DO
           CLOSE(10)
         END SUBROUTINE save_spectral_data
@@ -751,21 +759,21 @@ MODULE data_ops
          if(lebesgueQ<10) lebesgueQtxt(:)="0"//lebesgueQtxt(2:)
          
 
-         filename = HomeDir//"q"//trim(lebesgueQtxt)//"_"//"results.dat"
+         filename = HomeDir//"q"//trim(lebesgueQtxt)//"-"//"results.dat"
          
          if(rank==0 .and. verboseOptimization) print*, "saving results to ", filename
          
          if(rank==0) then
-            if(B_list_iterator==0) then
+            if(B_list_iterator==bIterOffset+1) then
                OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
                !WRITE(10,*) "# B  J1 iter"
-               WRITE(10, "(3 G20.12)") "B", "J1", "iter"
+               WRITE(10, "(4 G20.12)") "B#", "B", "J1", "iter"
                close(10)
             end if
 
                
             OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-            WRITE(10, "(2 G20.12, I5.4)") B, J1, Iter
+            WRITE(10, "(A20, 2 ES20.12, I20)") bIterTxt, B, J1, Iter
             CLOSE(10)
          end if
 
@@ -795,16 +803,18 @@ MODULE data_ops
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//myOptimType//"_IG"//IGtxt//"_iter_info.dat"
           !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
-          filename = ConstraintDir//"iteration_info"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"iteration-info"//"-B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
           
-          IF (iter == 1) THEN
+          IF (iter == 0) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-             WRITE(10,*) "# Iter  Tau  Beta  J  Ener  Ens  Div_L2norm  visc_R  NL_R Heli_R"   ! Newly added H_R, means helicity term in the objective function R
+             !WRITE(10,*) "Iter  Tau  Beta  J  Ener  Ens  Div_L2norm  visc_R  NL_R Heli_R"   ! Newly added H_R, means helicity term in the objective function R
+             WRITE(10,*) "Iter  Tau  Beta  J"   ! Newly added H_R, means helicity term in the objective function R
              CLOSE(10)
           END IF
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', POSITION = 'APPEND')
-          WRITE(10, "(I5.4, 9 G20.12)") iter, tau, beta, J, SUM(ener), SUM(ens), L2div, dEdt_visc, dEdt_NL, dEdt_Heli
+          !WRITE(10, "(I5.4, 9 ES20.12)") iter, tau, beta, J, SUM(ener), SUM(ens), L2div, dEdt_visc, dEdt_NL, dEdt_Heli
+          WRITE(10, "(I5.4, 3 ES20.12)") iter, tau, beta, J
           CLOSE(10)
 
         END SUBROUTINE save_diagnostics_optim
@@ -823,7 +833,7 @@ MODULE data_ops
             call createDirectoryIfNonExistent(trim(constParDir))
    
             !create constraint directory
-            ConstraintDir = trim(constParDir)//"B"//bIterTxt//"_"//bTxt//"/"
+            ConstraintDir = trim(constParDir)//"B"//bIterTxt//"-"//bTxt//"/"
             call createDirectoryIfNonExistent(trim(ConstraintDir))
 
          end subroutine initializeConstraintDirectory
@@ -847,7 +857,7 @@ MODULE data_ops
                inquire(file=trim(fullDir), exist=dirExists)
 
                if(.not. dirExists) then
-                  print*, "creating dir ", fullDir
+                  !print*, "creating dir ", fullDir
                   status = system( "mkdir " // fullDir )
                   !print*, "creating dir", fullDir, "status", status
                   if(status /= 0) then
@@ -882,7 +892,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_ringLocation.dat"
-          filename = ConstraintDir//"ringLocation"//"_B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"ringLocation"//"-B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
 
           IF (myflag==1) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
@@ -890,7 +900,7 @@ MODULE data_ops
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           END IF
           DO i=1,numPointsRing
-             WRITE(10, "(3 G20.12)") ringLoc(i,1), ringLoc(i,2), ringLoc(i,3)
+             WRITE(10, "(3 ES20.12)") ringLoc(i,1), ringLoc(i,2), ringLoc(i,3)
           END DO
           CLOSE(10)
 
@@ -1063,8 +1073,10 @@ MODULE data_ops
           INTEGER :: ncout, ncid, fid, dimids(3)
           INTEGER :: x_dimid, y_dimid, z_dimid
           INTEGER :: fname_len, ii, nx_ncdf, ny_ncdf, nz_ncdf
-
           INTEGER, DIMENSION(1:3) :: starts, counts
+
+
+          if(rank==0) print*, "loading file ", filename
 
           IF (parallel_data) THEN
              ALLOCATE( local_f(1:n(1),1:n(2),1:local_N) )
@@ -1201,14 +1213,14 @@ MODULE data_ops
           WRITE(optimizationIterTxt,'(i3.3)') optimizationIter
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
 
-          call createDirectoryIfNonExistent(ConstraintDir//"tau_data")
+          call createDirectoryIfNonExistent(ConstraintDir//"tau-data")
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
              if(iter<0) then
-               filename = ConstraintDir//"tau_data/"//"all_J_info_"//optimizationIterTxt//".dat"
+               filename = ConstraintDir//"tau-data/"//"all-J-info-"//optimizationIterTxt//".dat"
              else
-               filename = ConstraintDir//"tau_data/"//"lineMin_info_"//optimizationIterTxt//".dat"
+               filename = ConstraintDir//"tau-data/"//"lineMin-info-"//optimizationIterTxt//".dat"
              end if
              SELECT CASE (mymode)
                CASE ("replace")
@@ -1217,7 +1229,7 @@ MODULE data_ops
                CASE ("append")
                 OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
              END SELECT
-             WRITE(10, "(I5.4, 6 G20.12)") iter, tA, tB, tC, FA, FB, FC
+             WRITE(10, "(I5.4, 6 ES20.12)") iter, tA, tB, tC, FA, FB, FC
              CLOSE(10)
           END IF 
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
@@ -1228,12 +1240,13 @@ MODULE data_ops
         !============================================
         ! Save results from kappa test
         !============================================
-        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, myindex)
+        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, myindex, identifier)
           USE global_variables
           IMPLICIT NONE
 
           REAL(pr), INTENT(IN) :: eps, kappa, inner_prod, deltaJ
           INTEGER, INTENT(IN) :: myindex
+          CHARACTER(len=*), INTENT(IN) :: identifier
           CHARACTER(99) :: filePath
           character(10) :: dealiasing_str
 
@@ -1246,16 +1259,16 @@ MODULE data_ops
 
 !          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
           !filePath = ConstraintDir//"KappaTest"//trim(dealiasing_str)
-          filePath = ConstraintDir//"kappa"//"_B"//bIterTxt//".dat"
+          filePath = ConstraintDir//"kappa"//"-B"//bIterTxt//"-"//identifier//".dat"
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
-             WRITE(10, "(6 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa", "LOG10(ABS(kappa - 1.0_pr))"
-             WRITE(10, "(6 G20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+             WRITE(10, "(6 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa", "LOG10(ABS(kappa-1))"
+             WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
              CLOSE(10)
           ELSE
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-             WRITE(10, "(6 G20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+             WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
              CLOSE(10)
           END IF 
  
@@ -1283,7 +1296,7 @@ MODULE data_ops
           print*, " Error reading netCDF file. ", error_string
 
           IF (rank==0) THEN
-             OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
+             OPEN(10, FILE=HomeDir//"/LOGFILE-B"//bIterTxt//"_info.log", POSITION='APPEND')
              WRITE(10,*) " Error reading netCDF file. "//error_string
              CLOSE(10)
           END IF
@@ -1371,20 +1384,30 @@ MODULE data_ops
                msg_string = "      Starting mnbrak..."
             CASE (21)
                msg_string = "      mnbrak OK!"
+            CASE (22)
+               msg_string = "      mnbrak error... going uphill, verify gradient!"
             CASE (30)
                msg_string = "      Starting Brent method..."
             CASE (31)
                msg_string = "      Brent method OK!"
             CASE (32)
                msg_string = "      Optimal tau is too large!"
-            CASE (33)
-               msg_string = "      warning tau > 1"
+            CASE (41)
+               msg_string = "      warning tau > tau_max/1000000"
+            CASE (42)
+               msg_string = "      WARNING abs(inner(gradJproj,normalHs)) > 10e-15, should be 0"
+            CASE (43)
+               msg_string = "      WARNING ||div(gradJproj)||_2^2 > 10e-15, should be 0"
+            CASE (44)
+               msg_string = "      WARNING function that should be average free is not"
+
+               
 
           END SELECT
 
           IF (rank==0) THEN   
             !OPEN(10, FILE=HomeDir//"/LOGFILE_maxdEdtHeli_E"//E0txt//"_IG"//IGtxt//"_info.log", POSITION='APPEND')
-            OPEN(10, FILE=ConstraintDir//"optimization"//"_B"//bIterTxt//".log", POSITION='APPEND')
+            OPEN(10, FILE=ConstraintDir//"optimization"//"-B"//bIterTxt//".log", POSITION='APPEND')
             WRITE(10,*) msg_string
             CLOSE(10)
           END IF 

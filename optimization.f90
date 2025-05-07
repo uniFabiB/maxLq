@@ -12,24 +12,34 @@ module optimization
          USE mpi
          IMPLICIT NONE
 
-         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: gradJ0, gradJ1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJ0, vecTransported_d0
+         REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: uvec0, gradJ0, gradJ1, gradJproj, gradJused0, gradJused1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJused0, vecTransported_d0, normalL2, normalHs
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
 
-         REAL(pr) :: J0, J1, deltaJ, ell1, ell2, tau0, tau1, beta, local_scalar_L2norm, divU_L2, divGradJ_L2, inner, norm, test
-         REAL(pr), DIMENSION(1:3) :: local_field_L2norm, local_gradJK0, local_gradJK1, K, E, gradJ_K0, gradJ_K1
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, orderS
          REAL(pr), DIMENSION(1:2) :: tau_brack
-         REAL(pr), DIMENSION(1:3) :: dLqdt
+         real(pr), dimension(3) :: testVec, testVec2
 
          INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, while_flag
 
+         ALLOCATE( uvec0(1:n(1),1:n(2),1:local_N,1:3) )
+
          ALLOCATE( gradJ0(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( gradJ1(1:n(1),1:n(2),1:local_N,1:3) )
+
+         ALLOCATE( gradJproj(1:n(1),1:n(2),1:local_N,1:3) )
+
+
+         ALLOCATE( normalL2(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( normalHs(1:n(1),1:n(2),1:local_N,1:3) )
+
+         ALLOCATE( gradJused0(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( gradJused1(1:n(1),1:n(2),1:local_N,1:3) )
 
          ALLOCATE( d0(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( d1(1:n(1),1:n(2),1:local_N,1:3) )
 
 
-         ALLOCATE( vecTransported_GradJ0(1:n(1),1:n(2),1:local_N,1:3) )
+         ALLOCATE( vecTransported_GradJused0(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( vecTransported_d0(1:n(1),1:n(2),1:local_N,1:3) )
 
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
@@ -44,61 +54,53 @@ module optimization
          ! rescale to match the potentially changed constraint value
          !====================================
          if(rank==0 .and. verboseOptimization) print*, "rescaling"
-         call rescaleLqNorm(Uvec,lebesgueQ,constraintB)
-         call div_free(uvec)
+         call rescaleLqNorm(Uvec,constraintB)
+         call divAvg_free(uvec)
 
-
-
-
-         !====================================
-         ! CALCULATE DIAGNOSTICS OF CONTROL
-         !====================================
-         if(rank==0 .and. verboseOptimization) print*, "calculating diagnostics"
-         local_field_L2norm = Energy(Uvec)
-         CALL MPI_ALLREDUCE(local_field_L2norm, K, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-
-
-         CALL divergence(Uvec, f_scalar)
-         local_scalar_L2norm = inner_product(f_scalar, f_scalar, "L2")
-         CALL MPI_ALLREDUCE(local_scalar_L2norm, divU_L2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo) 
-   
-         local_field_L2norm = Enstrophy(Uvec)
-         CALL MPI_ALLREDUCE(local_field_L2norm, E, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-
-
-         dLqdt = calc_dLqdt(Uvec, lebesgueQ)
-         
 
          !======================================================
          ! initialize loop variables
          !======================================================
          if(rank==0 .and. verboseOptimization) print*, "initializing loop variables"
          J0 = eval_J(Uvec, "maxdLqdt")
-         J1 = 1.5_pr*J0
+         J1 = 0.0_pr
          deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
          iter = 0
+         write(optimizationIterationTxt, '(i3.3)') iter
          d0 = 0.0_pr
-         vecTransported_GradJ0 = 0.0_pr
+         vecTransported_GradJused0 = 0.0_pr
          vecTransported_d0 = 0.0_pr
-         tau0 = 10.0_pr**(-4.0_pr)
-         tau1 = tau0       
-         if(rank==0) print*, achar(9), "iter =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
+         tau0Init = 10.0_pr**(2.0_pr)
+         tau0 = tau0Init
+         tau1 = tau0Init
+         !===============================
+         ! PRINT INITIAL VALUES
+         !===============================
+         if(rank==0) print*, iter, "iteration"
+         if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_visc/(|J_v|+|J_n|)", "J_nonLin/(|J_v|+|J_n|)"
+         test = calc_global_Lq_norm(Uvec)
+         testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
+         testVec(1) = abs(testVec(2)) + abs(testVec(3))
+         if(rank==0) print '(A20, 8ES20.8, 2F20.8)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+
          IF (save_diag_Optim) THEN
             IF (rank==0) THEN
-               CALL save_diagnostics_optim("maxdLqdt", iter, 0.0_pr, 0.0_pr, J0, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)   
+               CALL save_diagnostics_optim("maxdLqdt", iter, 0.0_pr, 0.0_pr, J0, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)
             END IF
+            if(save_spectraEveryXiteration>0) then
+               if(modulo(iter,save_spectraEveryXiteration) == 0) then
+                  CALL calculateSaveSpectrum(uvec,"uvec")
+               end if
+            end if
          END IF
-         
-         if (kappaTest) then
-            J0 = eval_J(Uvec, "maxdLqdt")
-            gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
-            CALL kappa_test(Uvec, gradJ1, J0, "maxdLqdt")   ! The function kappa_test_pert is not defined properly, on May 4, 2017
-         end if
 
          while_flag = 0
 
+         !lambda1 = 10.0_pr
+
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
+            write(optimizationIterationTxt, '(i3.3)') iter
             if(rank==0) print*, iter, "iteration"
 
 
@@ -106,53 +108,104 @@ module optimization
             ! CALCULATE BASIC GRADIENT IN THE H^s TOPOLOGY
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "calculating gradient"
-            gradJ1 = GradL2ForLq(Uvec, lebesgueQ)
-            CALL SobolevGradient(gradJ1, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ))
+            gradJ1 = GradL2ForLq(Uvec)
+            orderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
+            CALL SobolevGradient(gradJ1, orderS)
+            call divAvg_free(gradJ1)
 
-
+            !======================================================
+            ! ORTHOGONAL GRADIENT
+            !======================================================
             !======================================================
             ! CALCULATE Normal Of Tangent Space
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "calculating normal of tangent"
-            unit_normal = calcConstraintDerivativeL2(Uvec, lebesgueQ)     ! unit_normal = q |u|^{q-2} u = nabla( ||u||_q^q )
-            call sobolevGradient(unit_normal, (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ))  ! nabla^(H^...) (||u||_q^q)
-            inner = global_summed_field_inner_product(unit_normal,unit_normal,"H_l^((3q-1)/(2q))")
-            norm = sqrt(inner)
-            unit_normal(:,:,:,:) = unit_normal(:,:,:,:)/norm               ! n = nabla( ||u||_q^q )/||nabla( ||u||_q^q )||_{H_l^...}
-
-
+            normalL2 = calcConstraintDerivativeL2(Uvec)     ! normal = q |u|^{q-2} u = nabla( ||u||_q^q )
+            normalHs = normalL2
+            call sobolevGradient(normalHs, orderS)
+            !testVec = calc0thFourierModes(normalHs)
+            !call divAvg_free(normalHs)
+            !testVec = calc0thFourierModes(normalHs)
+            !if(rank==0) print*, "0th order fourier mode of divfree normal HS", testVec(1), testVec(2), testVec(3)
+            call divAvg_free(normalHs)
+            alpha = global_summed_field_inner_product(normalHs,gradJ1,"H_l^(3/2-1/q)")
+            alpha = alpha/global_summed_field_inner_product(normalHs,normalHs,"H_l^(3/2-1/q)")
+            
             !======================================================
             ! PROJECT to tangent space, gradJ1 = Projection_Tang(u) (nabla^{H^\dots} J)
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "projecting"
-            inner = global_summed_field_inner_product(gradJ1,unit_normal,"H_l^((3q-1)/(2q))")                  ! < nabla J, n >_{H_l^...}
-            gradJ1(:,:,:,:) = gradJ1(:,:,:,:) - inner*unit_normal(:,:,:,:)                                     ! nabla J = nabla J - < nabla J, n >_{H_l^...} n
-            call div_free(gradJ1)                                                                              ! project average free, div free
+            gradJproj(:,:,:,:) = gradJ1(:,:,:,:) - alpha*normalHs(:,:,:,:)
+            !call divAvg_free(gradJproj)
+
+            test = abs(global_summed_field_inner_product(gradJproj, normalHs, "H_l^(3/2-1/q)")/global_summed_field_inner_product(gradJproj+normalHs,gradJproj+normalHs, "H_l^(3/2-1/q)"))
+            if(test>checkNormalTolerance) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), "abs(inner(gradJproj,normalHs)/||gradJproj+normalHs||^2)", test, ">", checkNormalTolerance, "should be 0"
+               call optim_msg_handle(42)
+               !call kappa_test(uvec, normalHs, .false., "||u||_q", "projection normal", "H_l^(3/2-1/q)")
+            else
+               if(iter == 1 .and. kappaTest) call kappa_test(uvec, normalHs, .false., "||u||_q", "projection normal", "H_l^(3/2-1/q)")
+            end if
+            call divergence(gradJproj, f_scalar)
+            test = global_inner_product(f_scalar,f_scalar,"L2")/global_summed_field_inner_product(gradJproj,gradJproj,"H_l^(3/2-1/q)")
+            if (test>checkDivergenceTolerance) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), "||div(gradJproj)||_2^2/||gradJproj||_H^s", test, ">", checkDivergenceTolerance, "should be 0"
+               call optim_msg_handle(43)
+            end if
+
             
+            
+            
+            !======================================================
+            ! Base Descend Direction
+            !======================================================
+            if(useOrthogonalGradient) then
+               gradJused1(:,:,:,:) = gradJproj(:,:,:,:)
+            else
+               gradJused1(:,:,:,:) = gradJ1(:,:,:,:)
+            end if
 
             !======================================================
-            ! Calculate Momentum Term (Polak-Ribière)
+            ! CONJUGATE GRADIENT
             !======================================================
-            if(rank==0 .and. verboseOptimization) print*, "momentum term"
-            beta = global_summed_field_inner_product(gradJ1,gradJ1-vecTransported_GradJ0,"H_l^((3q-1)/(2q))")
-            beta = beta/global_summed_field_inner_product(gradJ1,gradJ1,"H_l^((3q-1)/(2q))")
-            
-            
+            if(useConjugateGradient) then
+               if(rank==0 .and. verboseOptimization) print*, "conjugate gradient"
+               !======================================================
+               ! Calculate Momentum Term (Polak-Ribière)
+               !======================================================
+               beta = global_summed_field_inner_product(gradJused1,gradJused1-vecTransported_d0,"H_l^(3/2-1/q)")       !!! d0 or usedgraj0??? (8.29) in absil et al
+               beta = beta/global_summed_field_inner_product(gradJused1,gradJused1,"H_l^(3/2-1/q)")
+
+               if(modulo(iter,resetMomentumTermEveryXiterations) == 0) then
+                  if(rank==0) print*, achar(9), "RESETTING MOMENTUM TERM"
+                  beta = 0.0_pr
+               end if
+               
+               d1(:,:,:,:) = gradJused1(:,:,:,:) + beta*vecTransported_d0(:,:,:,:)
+            else
+               d1(:,:,:,:) = gradJused1(:,:,:,:)
+            end if
+
+
             !======================================================
-            ! Descend Direction
+            ! normalize d = || u ||_H^s/|| d ||_H^s d
+            ! so that tau measures ratio between old and new
             !======================================================
-            if(rank==0 .and. verboseOptimization) print*, "direction"
-            d1(:,:,:,:) = gradJ1(:,:,:,:) + beta*vecTransported_d0(:,:,:,:)
             
-            !===========================================
-            ! GET DIAGNOSTICS OF ASCENT DIRECTION AND SAVE
-            !===========================================
-            if(rank==0 .and. verboseOptimization) print*, "get diagnostics"
-            local_field_L2norm = Energy(gradJ1)
-            CALL MPI_ALLREDUCE(local_field_L2norm, gradJ_K1, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-            CALL divergence(gradJ1, f_scalar)
-            local_scalar_L2norm = inner_product(f_scalar, f_scalar, "L2")
-            CALL MPI_ALLREDUCE(local_scalar_L2norm, divGradJ_L2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+            if(normalizeDirection) then
+               d1(:,:,:,:) =  sqrt(global_summed_field_inner_product(uvec,uvec,"H_l^(3/2-1/q)")/global_summed_field_inner_product(d1,d1,"H_l^(3/2-1/q)")) * d1(:,:,:,:)
+            end if
+
+            testVec = calc0thFourierModes(d1)
+            if(sum(abs(testVec(:)))>checkAverageTolerance*constraintB) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), checkAverageTolerance*constraintB,"< abs(average(gradJproj)) =", testVec(1), testVec(2), testVec(3)
+               call optim_msg_handle(44)
+            end if
+            testVec = calc0thFourierModes(uvec)
+            if(sum(abs(testVec(:)))>checkAverageTolerance*constraintB) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), checkAverageTolerance*constraintB,"< abs(average(gradJproj)) =", testVec(1), testVec(2), testVec(3)
+               call optim_msg_handle(44)
+            end if
             
             !======================================
             ! FIND OPTIMAL tau BY ARC OPTIMIZATION
@@ -160,24 +213,23 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "find tau"
 
             CALL optim_msg_handle(20) 
-            tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, 1.5*tau0, mnbrak_flag)
+            tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, tau0, mnbrak_flag)
 
             IF (mnbrak_flag /= 0) THEN
-               IF (rank==0) THEN
-                  print*, "mnbrak error"
-                  select case (mnbrak_flag)
-                     CASE (1)
-                        print*, achar(9), "Going uphill... Verify gradient!"   !achar(9) = ascii code 9 = tab
-                     CASE (2)
-                        print*, achar(9), "Could not bracket minimum."
-                     CASE (3)
-                        print*, achar(9), "Decreasing tau..."
-                  end select
-               END IF
+               IF (rank==0) print*, "mnbrak error"
+               select case (mnbrak_flag)
+                  CASE (1)
+                     IF (rank==0) print*, achar(9), "Going uphill... Verify gradient!"   !achar(9) = ascii code 9 = tab
+                     call optim_msg_handle(22)
+                  CASE (2)
+                     IF (rank==0) print*, achar(9), "Could not bracket minimum."
+                  CASE (3)
+                     IF (rank==0) print*, achar(9), "Decreasing tau..."
+               end select
                CALL optim_error_handle(mnbrak_flag)            
                IF (save_diag_Optim) THEN
                   IF (rank==0) THEN
-                     CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                     CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J0, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)
                   END IF
                END IF
                while_flag = 1
@@ -203,63 +255,53 @@ module optimization
 
             !IF (rank==0) print*, "tau1", tau1
             if(tau1>tau_max) then
-               if (rank==0) print*, "WARNING: tau1", tau1, "> TAU_MAX", tau_max, " setting tau1=tau_max"
+               if (rank==0) print*, "WARNING: tau1", tau1, "> TAU_MAX", tau_max, " terminating optimzation, not smooth enough?"
                call optim_msg_handle(32)
-               tau1 = tau_max
-            elseif(tau1>1.0) then
-               if (rank==0) print*, "slight warning: tau1", tau1, ">1"
-               call optim_msg_handle(32)
+               while_flag = 1
+               tau1 = 0.0_pr
+            elseif(tau1>sqrt(tau_max)) then
+               if (rank==0) print*, achar(9), achar(9), "warning: tau1", tau1, ">", sqrt(tau_max)
+               call optim_msg_handle(41)
             end if
 
+
             !======================================
-            ! update vector transport for next step with "old" tangentspace at "old" u
+            ! update vector transport FOR NEXT STEP with "old" tangentspace at "old" u
             !======================================
-            if(rank==0 .and. verboseOptimization) print*, "update vector transport"
-            vecTransported_GradJ0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, gradJ1)
-            vecTransported_d0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, d1)
+            if(useRiemannianGeometry) then
+               if(rank==0 .and. verboseOptimization) print*, "update vector transport"
+               vecTransported_GradJused0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, gradJused1)
+               vecTransported_d0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, d1)
+            else
+               vecTransported_GradJused0 = gradJused1
+               vecTransported_d0 = d1
+            end if
 
             !======================================
             ! update u
             !======================================
             if(rank==0 .and. verboseOptimization) print*, "update u"
+            uvec0 = uvec
             Uvec = Uvec + tau1*d1
-            call rescaleLqNorm(uvec, lebesgueQ, constraintB)
-         
-            !test = calc_global_Lq_norm(Uvec, lebesgueQ)
-            !if(rank==0) print*, "uvec Lq norm", test, "B", constraintB
-
-            !====================================
-            ! CALCULATE DIAGNOSTICS OF CONTROL; Compute related quantities' values of new velocity
-            !====================================
-            if(rank==0 .and. verboseOptimization) print*, "calc diagnostics"
-            local_field_L2norm = Energy(Uvec)
-            CALL MPI_ALLREDUCE(local_field_L2norm, K, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-
-            CALL divergence(Uvec, f_scalar)
-            local_scalar_L2norm = inner_product(f_scalar, f_scalar, "L2")
-            CALL MPI_ALLREDUCE(local_scalar_L2norm, divU_L2, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo) 
-
-            local_field_L2norm = Enstrophy(Uvec)
-            CALL MPI_ALLREDUCE(local_field_L2norm, E, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-
-            dLqdt = calc_dLqdt(Uvec, lebesgueQ)
+            call rescaleLqNorm(uvec, constraintB)
+                     
 
             J1 = eval_J(Uvec, "maxdLqdt")
             deltaJ = (J1-J0)/ABS(J0)
             IF (deltaJ < -MACH_EPSILON) THEN      ! Change om March 30, 2017
                 IF (save_diag_Optim) THEN
                     IF (rank==0) THEN
-                        CALL save_diagnostics_optim("maxdLqdt", iter+1, tau1, beta, J0, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                        CALL save_diagnostics_optim("maxdLqdt", iter+1, tau1, beta, J0, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)   
                     END IF
                 END IF
                 CALL optim_msg_handle(0)
                 if(rank==0) print*, "WARNING! Cost functional not increasing, exiting"
                 if(rank==0 .and. tauDebugToConsole) then
-                  print '(4G20.12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)"
-                  print '(4G20.12)', achar(9), tau_brack(1), tau1, tau_brack(2)
+                  print '(4A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)"
+                  print '(A20, 3ES20.12)', achar(9), tau_brack(1), tau1, tau_brack(2)
                 end if
                 !save_data_optim = .FALSE.
-                while_flag = 0
+                while_flag = 1
                 EXIT
             ELSE
                !save_data_optim = .TRUE.
@@ -270,39 +312,76 @@ module optimization
             IF (save_diag_Optim) THEN
                if(rank==0 .and. verboseOptimization) print*, "saving diag optim"
                IF (rank==0) THEN
-                  CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J1, K, E, divU_L2, dLqdt(1), dLqdt(2), dLqdt(3))   
+                  CALL save_diagnostics_optim("maxdLqdt", iter, tau1, beta, J1, (/0.0_pr, 0.0_pr, 0.0_pr/), (/0.0_pr, 0.0_pr, 0.0_pr/), 0.0_pr, 0.0_pr, 0.0_pr, 0.0_pr)
                END IF
+               if(save_spectraEveryXiteration>0) then
+                  if(modulo(iter,save_spectraEveryXiteration) == 0) then
+                     CALL calculateSaveSpectrum(uvec,"uvec")
+                     !CALL calculateSaveSpectrum(gradJ1,"gradJ")
+                     !CALL calculateSaveSpectrum(gradJproj,"gradJproj")
+                     CALL calculateSaveSpectrum(d1,"d")
+                  end if
+               end if
+               if(save_vectorFieldsEveryXiteration>0) then
+                  if(modulo(iter, save_vectorFieldsEveryXiteration) == 0) call diagnosticScalars(Uvec)
+               end if
             END IF
             CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+
+            !===============================
+            ! PRINT RESULTS
+            !===============================
+            if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_visc/(|J_v|+|J_n|)", "J_nonLin/(|J_v|+|J_n|)"
+            test = calc_global_Lq_norm(Uvec)
+            testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
+            testVec(1) = abs(testVec(2)) + abs(testVec(3))
+            if(rank==0) print '(A20, 8ES20.8, 2F20.8)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+
 
             !===============================
             ! UPDATE OLD VARIABLES
             !===============================   
             if(rank==0 .and. verboseOptimization) print*, "update old variables"
-            if(rank==0) print '(7G20.12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1"
-            if(rank==0) print '(7G20.12)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1
             J0 = J1
             gradJ0 = gradJ1
             tau0 = tau1
             d0 = d1
 
+
+
+            !if(lambda1>0.1) lambda1=lambda1/1.1
+
          END DO
 
 
-         if(rank==0) then
-            if(iter<MAX_ITER .and. while_flag<1) then
+         if(iter<MAX_ITER .and. while_flag<1) then
+            if(rank==0) then
                print*, "optimization terminated successful after", iter, "iterations"
-            if(rank==0) print*, achar(9), "iter final =", iter, "J1", J1, "tau", tau1, "deltaJ", deltaJ
-            else
+               print*, " "
+            end if
+            if (kappaTest) then
+               !CALL kappa_test(uvec0, gradJ1, "end_gradJ1", "H_l^(3/2-1/q)")
+               CALL kappa_test(uvec0, d1, .true.,"maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
+            end if
+         else
+            if(rank==0) then
                print*, "optimization terminated unsuccessful", iter, MAX_ITER
             end if
+            !CALL kappa_test(uvec0, gradJ1, "end_gradJ1", "H_l^(3/2-1/q)")
+            CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
          end if
 
 
          IF (save_data_Optim) THEN
+            optimizationIterationTxt = "end"
             if(rank==0 .and. verboseOptimization) print*, "saving data optim"
-            CALL diagnosticScalars(Uvec, iter)
+            CALL diagnosticScalars(Uvec)
             CALL save_Ctrl(Uvec, iter, "maxdLqdt_result")
+            CALL calculateSaveSpectrum(uvec,"uvec")
+            CALL calculateSaveSpectrum(gradJproj,"gradJproj")
+            CALL calculateSaveSpectrum(gradJ0,"gradJ")
+            CALL calculateSaveSpectrum(d0,"d")
          END IF
 
          CALL optim_msg_handle(1)
@@ -312,13 +391,18 @@ module optimization
          !===============================    
          call save_to_optimizationResultList(constraintB, J1, iter)
          
-
-
-
-         DEALLOCATE(gradJ0)
-         DEALLOCATE(gradJ1)
+         deallocate(uvec0)
+         deallocate(gradJ0)
+         deallocate(gradJ1)
+         deallocate(normalL2)
+         deallocate(normalHs)
+         deallocate(gradJproj)
+         deallocate(gradJused0)
+         deallocate(gradJused1)
          deallocate(d0)
          deallocate(d1)
+         deallocate(vecTransported_GradJused0)
+         deallocate(vecTransported_d0)
          DEALLOCATE(diff_gradJ)
          DEALLOCATE(f_scalar)
 
@@ -327,6 +411,7 @@ module optimization
          if(rank==0 .and. verboseOptimization) print*, "ending maxdLqdt"
 
       end subroutine
+
 
    !=================================================
    ! FUNCTION THAT CALCULATES COST FUNCTIONAL
@@ -340,19 +425,21 @@ module optimization
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: myfield
       REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: aux1
       CHARACTER(len=*), INTENT(IN) :: mysystem
-      REAL(pr) :: local_J, J      
+      REAL(pr) :: local_J, J
 
       allocate( aux1(1:n(1),1:n(2),1:local_N,1:3) )
       aux1 = myfield
       SELECT CASE (mysystem)
          case ("maxdLqdt")
-            local_J = calc_dLqdt(aux1, lebesgueQ)
+            local_J = calc_local_dLqdt(aux1, lebesgueQ)
             call mpi_allreduce(local_J, J, 1, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
          CASE ("LineMin")
-            CALL rescaleLqNorm(aux1, lebesgueQ, constraintB)
+            CALL rescaleLqNorm(aux1, constraintB)
             J = -1.0_pr*eval_J(aux1, "maxdLqdt")
+         case ("||u||_q")
+            J = calc_global_Lq_norm(aux1)
          case DEFAULT
-            IF (rank==0)  print*, "WARNING, case ", mysystem, " for mysystem not found in eval_grad_J"
+            IF (rank==0) print*, "WARNING, case ", mysystem, " for mysystem not found in eval_grad_J"
             J = 0.0_pr
       END SELECT
       deallocate(aux1)
@@ -395,11 +482,11 @@ module optimization
 
 
       if(mnbra_calcSaveAllJvalues) then
-         tB = MAX(5.0*tB0, MACH_EPSILON)
+         tB = MAX(100.0*tB0, MACH_EPSILON)
          phi_bar = phi + tB*grad
          FB = eval_J(phi_bar, "LineMin")
          IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, optimizationIter, mysystem, "replace")
-         DO WHILE (tB > MACH_EPSILON) 
+         DO WHILE (tB > 1.0e-5_pr) 
             tB = CGOLD*tB
             phi_bar = phi + tB*grad
             FB = eval_J(phi_bar, "LineMin")
@@ -579,10 +666,10 @@ module optimization
       E = 0.0_pr
 
 
-      call createDirectoryIfNonExistent(ConstraintDir//"tau_data")
+      call createDirectoryIfNonExistent(ConstraintDir//"tau-data")
 
       !filename = HomeDir//"/brent_info"//".dat"
-      filename = ConstraintDir//"tau_data/"//"brent_info_"//itertxt//".dat"
+      filename = ConstraintDir//"tau-data/"//"brent-info-"//itertxt//".dat"
       !filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
  
       phi_bar = phi + D*grad
@@ -591,7 +678,7 @@ module optimization
       if(rank==0) then
          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
          WRITE(10, "(3 G20.12)") "#", "Tau", "J"
-         WRITE(10, "(3 G20.12)") 0.0, D, FX
+         WRITE(10, "(I20, 2 ES20.12)") 0, D, FX
          CLOSE(10)
       end if
       call mpi_barrier(mpi_comm_world, statinfo)
@@ -608,7 +695,7 @@ module optimization
 
          if(rank==0) then
             OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-            WRITE(10, "(3 G20.12)") j, X, FX
+            WRITE(10, "(I20, 2 ES20.12)") j, X, FX
             CLOSE(10)
          end if
          call mpi_barrier(mpi_comm_world, statinfo)
@@ -696,7 +783,7 @@ module optimization
 
       if(rank==0) then
          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-         WRITE(10, "(3 G20.12)") 999, X, FX
+         WRITE(10, "(I20, 2 ES20.12)") 999, X, FX
          CLOSE(10)
       end if
       call mpi_barrier(mpi_comm_world, statinfo)
@@ -709,7 +796,7 @@ module optimization
    !============================================
    ! Perform kappa_test
    !============================================
-   SUBROUTINE kappa_test(phi, gradJ, J0, mysystem)
+   SUBROUTINE kappa_test(phi, gradJ, useAdjustedKappaTest, mysystem, nameOfKappaTest, inner_product_space)
       USE global_variables
       USE function_ops
       USE data_ops
@@ -718,22 +805,30 @@ module optimization
       IMPLICIT NONE
 
       !REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
+      CHARACTER(len=*), INTENT(IN) :: mysystem
+      logical, intent(in) :: useAdjustedKappaTest
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: gradJ
       !REAL(pr), INTENT(IN) :: J0
-      REAL(pr), INTENT(INOUT) :: J0
-      CHARACTER(len=*), INTENT(IN) :: mysystem
+      REAL(pr) :: J0
+      CHARACTER(len=*), INTENT(IN) :: nameOfKappaTest, inner_product_space
       REAL(pr) :: myepsilon, kappa, deltaJ
+      real(pr), dimension(:,:), allocatable :: kappaArray
       REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: phi_pert, phi_bar
-      REAL(pr) :: myexp, J1
-      REAL(pr), DIMENSION(1:3) :: dx, local_inner_prod, global_inner_prod
-      INTEGER :: ii      
+      REAL(pr) :: myexp, J1, innerProd
+      REAL(pr), DIMENSION(1:3) :: dx
+      integer :: kappaTestSize = 16
+      INTEGER :: ii, jj
+      
+      ! factor adjusted kappa
+      integer :: iAdjMin, adjAvgSize
+      real(pr) :: fracAdjMin, frac
+
       CHARACTER(2) :: K0txt, E0txt, IGtxt
       CHARACTER(4) :: strLebesgueQ
       CHARACTER(3) :: tempStr
       character(50) :: phiPertText		! load random b/divfree sine/load te0080/...
-      real(pr), dimension(1:n(1),1:n(2),1:local_N) :: testScalarField
-      real(pr) :: testScalar
+      
 
 
       complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
@@ -742,8 +837,8 @@ module optimization
 
 
       IF (rank==0) THEN
-         print*, "kappaTest"
-         print*, "q", lebesgueQ
+         print*, "kappaTest ", nameOfKappaTest
+         !print*, "q", lebesgueQ
       END If
       WRITE(tempStr,'(F3.1)') lebesgueQ-int(lebesgueQ)              ! might result in rounding errors for 1.999999999999
       WRITE(strLebesgueQ,'(I2.2,a2)') int(lebesgueQ), tempStr(2:)
@@ -773,53 +868,98 @@ module optimization
       !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
       !phiPertText = "load-te0080"
       phiPertText = trim(phiPertText)
-      call kappa_test_pert(phi_pert, phiPertText, -3.0_pr, 0.0_pr, 0.0_pr)
-      
-      call divergence(phi_pert,testScalarField)
-      testScalar = inner_product(testScalarField,testScalarField,"L2")
-      if(rank==0) then
-      	print*, "|| nabla cdot phi_pert ||_2^2 = ", testScalar
-      end if
-
-      local_inner_prod = field_inner_product(gradJ, phi_pert, "L2")
-      
-      
+      call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr)
       
 
-      call calculateSaveSpectrum(phi, "phi")
-      call calculateSaveSpectrum(phi_pert, trim("phiPert-"//phiPertText))
-      call calculateSaveSpectrum(gradJ, "gradJ"//"_q-"//strLebesgueQ)
+      
+
+      !call calculateSaveSpectrum(phi, "phi")
+      !call calculateSaveSpectrum(phi_pert, trim("phiPert-"//phiPertText))
+      !call calculateSaveSpectrum(gradJ, "gradJ"//"-q-"//strLebesgueQ)
 
 
-      CALL MPI_ALLREDUCE(local_inner_prod, global_inner_prod, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+      innerProd = global_summed_field_inner_product(gradJ, phi_pert, inner_product_space)
 
-      !DO ii=1,21
-      DO ii=1,30
-         if (rank==0) then
-               print*, "kappa test index", ii, "/30"
-         end if
+
+      J0 = eval_J(phi, mysystem)
+      allocate( kappaArray(kappaTestSize,2) )
+
+      DO ii=1,kappaTestSize
          
-         myexp = -14.0_pr + 0.5_pr*REAL(ii,pr)
+         myexp = -7.0_pr - real(kappaTestSize, pr)/2.0 + real(ii,pr)
          myepsilon = 10.0_pr**myexp         
          
          phi_bar = phi + myepsilon*phi_pert
 
-         J1 = eval_J(phi_bar, "maxdLqdt")
+         J1 = eval_J(phi_bar, mysystem)
          
-         kappa = (J1-J0)/(myepsilon*SUM(global_inner_prod))
+         kappa = (J1-J0)/(myepsilon*innerProd)
+
+         kappaArray(ii,:) = (/myepsilon, kappa/)
+
+         if (rank==0) then
+            if(.not.useAdjustedKappaTest) then
+               print*, achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
+            end if
+         end if
+
          deltaJ = J1-J0  
 
          IF (rank==0) THEN
-            CALL save_kappa_test(myepsilon, SUM(global_inner_prod), deltaJ, kappa, ii)
+            if(.not.useAdjustedKappaTest) then
+               CALL save_kappa_test(myepsilon, innerProd, deltaJ, kappa, ii, nameOfKappaTest)
+            end if
          END IF 
          
 
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
       END DO
 
-      if( rank == 0 ) then
-         print*, "kmax", kmax
+
+      !!!!! CALCULATE ADJUSTED KAPPA TEST !!!!!
+      !!! tries to find a factor c such that c*gradJ is the acutal gradient
+      !!! can be used for d = projected( grad J ) + beta vector(transport)
+      !!! since this is probably not normalized in the correct way for the kappa test
+      iAdjMin = 0
+      adjAvgSize = 4
+      fracAdjMin = 9999
+      do ii=1,kappaTestSize-(adjAvgSize-1)
+         frac = 0.0_pr
+         do jj=0,adjAvgSize-1
+            frac = frac + abs(1-abs(kappaArray(ii+jj,2)/kappaArray(ii+jj+1,2)))
+         end do
+         if(frac<fracAdjMin) then
+            fracAdjMin = frac
+            iAdjMin = ii
+         end if
+      end do
+
+      ! best guess for adjusting
+      frac = 1.0_pr
+      do jj=0,adjAvgSize-1
+         frac = frac*abs(kappaArray(iAdjMin+jj,2))
+      end do
+      frac = sign( (frac)**(1.0_pr/(adjAvgSize)) , kappaArray(iAdjMin,2) )
+      kappaArray(:,2) = kappaArray(:,2)/frac
+      
+
+      if(rank==0) then
+         DO ii=1,kappaTestSize
+            !(/myepsilon, kappa/) = kappaArray(ii,:) !WHY FORTRAN CAN'T I DO SOMETHING LIKE THIS!!!
+            myepsilon = kappaArray(ii,1)
+            kappa = kappaArray(ii,2)
+            if(useAdjustedKappaTest) then
+               print*, achar(9), achar(9), "kappa test adjusted", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
+               CALL save_kappa_test(myepsilon, 0.0_pr, 0.0_pr, kappa, ii, nameOfKappaTest//"--adjusted")
+            end if
+         END DO
+         if(useAdjustedKappaTest) then
+            print*, achar(9), achar(9), "kappa test adjustment factor", frac
+            CALL save_kappa_test(myepsilon, frac, frac, kappa, 1000, nameOfKappaTest//"--adjusted")
+         end if
       end if
+
+      deallocate( kappaArray )
 
       DEALLOCATE(phi_pert)
       DEALLOCATE(phi_bar)

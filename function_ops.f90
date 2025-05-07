@@ -41,10 +41,10 @@ module function_ops
 
          SELECT CASE (iguess)
             case (0)
-               filename = "./input/FRT_N256E500T017_Uvec_fwdTE0220.nc"
+               filename = inputDir//"FRT_N256E500T017_Uvec_fwdTE0220.nc"
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
                !x = 2.0_pr*PI*REAL(n(1),pr)/16.0_pr     ! wave number from which on to cut fourier modes
-               !call div_free(uvec)
+               !call divAvg_free(uvec)
 
             case (1)
                allocate( auxVec(1:n(1),1:n(2),1:local_N,1:3) )
@@ -66,7 +66,7 @@ module function_ops
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
                call kappa_test_pert(auxvec,"sine",7.0_pr,2.0_pr,3.0_pr)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call div_free(uvec)
+               call divAvg_free(uvec)
                
                deallocate( auxVec )
 
@@ -89,7 +89,7 @@ module function_ops
 
             CASE (9)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
-               filename = "./input/n128_visc0.05_B10**0.25_result.nc"
+               filename = inputDir//"u_result_B12_0506.nc"
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
                
 
@@ -97,9 +97,9 @@ module function_ops
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
                select case (n(1))
                case (64)
-                  filename = "./input/n64_nice.nc"
+                  filename = inputDir//"n64_nice.nc"
                case (128)
-                  filename = "./input/n128_nice.nc"
+                  filename = inputDir//"n128_nice.nc"
                case default
                   if(rank==0) print*, "ERROR FILE NOT FOUND"
                   return
@@ -158,7 +158,7 @@ module function_ops
                Uvec(:,:,:,1) = Ux
                Uvec(:,:,:,2) = Uy
                Uvec(:,:,:,3) = Uz
-               CALL div_free(Uvec)   
+               CALL divAvg_free(Uvec)   
 
             CASE (60)                              ! I added on Feb 23, 2017; Arnold-Beltrami-Childress (ABC) flow. Modified on March 16, 2017, add read file data; Discuss with Diego
                if (E0_index .eq. 12) then
@@ -200,7 +200,7 @@ module function_ops
                   !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
-                  CALL div_free(Uvec)
+                  CALL divAvg_free(Uvec)
                end if
 
             CASE (61)                              !Initial guess is a perturbation of Case(60), with start from obtained velocity
@@ -239,7 +239,7 @@ module function_ops
                   Uvec(:,:,:,1) = Ux
                   Uvec(:,:,:,2) = Uy
                   Uvec(:,:,:,3) = Uz
-                  CALL div_free(Uvec)   
+                  CALL divAvg_free(Uvec)   
                else
                   WRITE(K0txt,'(i2.2)') K0_index
                   WRITE(E0txt,'(i2.2)') E0_index-1
@@ -261,7 +261,7 @@ module function_ops
                   !CALL dealiasing(Uz) ! commented out by fb
                   Uvec(:,:,:,3) = Uz
 
-                  CALL div_free(Uvec)   
+                  CALL divAvg_free(Uvec)   
                end if
 
             CASE (62)                           !Initial guess is a perturbation of Case(60), with start from obtained velocity, plus perturbation
@@ -300,7 +300,7 @@ module function_ops
                   Uvec(:,:,:,1) = Ux
                   Uvec(:,:,:,2) = Uy
                   Uvec(:,:,:,3) = Uz
-                  CALL div_free(Uvec)   
+                  CALL divAvg_free(Uvec)   
                else
                   WRITE(K0txt,'(i2.2)') K0_index
                   WRITE(E0txt,'(i2.2)') E0_index-1
@@ -338,7 +338,7 @@ module function_ops
                      END DO
                   END DO
 
-                  CALL div_free(Uvec)   
+                  CALL divAvg_free(Uvec)   
                end if
 
            END SELECT
@@ -382,12 +382,21 @@ module function_ops
 
 
          
+         if (n(1)<100) then
+            WRITE(auxStr, '(i2)') n(1)
+            auxStr = '00'//auxStr(1:2)
+         elseif (n(1)<1000) then
+            WRITE(auxStr, '(i3)') n(1)
+            auxStr = '0'//auxStr(1:3)
+         elseif (n(1)<10000) then
+            WRITE(auxStr, '(i4)') n(1)
+         end if
 
          dx = 1.0/REAL(n, pr)
          SELECT CASE (mytype)
 
             case ("load-te0080")
-               filename = "./input/FRT_N256E500T017_Uvec_fwdTE0080.nc"
+               filename = inputDir//"FRT_N256E500T017_Uvec_fwdTE0080.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
 
 
@@ -404,7 +413,7 @@ module function_ops
                      END DO
                   END DO
                END DO               
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
             
             case ("divfree-sine")
                DO kk=1, local_N
@@ -423,57 +432,25 @@ module function_ops
 
 
             case ("load-random-a")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_a.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_a.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_a.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_a.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_a.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
 
             case ("load-random-b")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_b.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_b.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_b.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_b.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_b.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
 
             CASE ("load-random-smooth-a")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_a.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_a.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_a.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_a.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_a.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                do kk=1,3
-                  call dealias_scalar(phi_pert(:,:,:,kk), 3.0_pr)
+                  call dealias_scalar(phi_pert(:,:,:,kk), 20.0_pr)
                end do
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
             CASE ("load-k-random-a")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_a.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_a.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_a.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_a.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_a.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -495,19 +472,11 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
                
             CASE ("load-k-random-b")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_b.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_b.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_b.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_b.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_b.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -529,18 +498,10 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
             CASE ("load-random-poly-a")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_a.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_a.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_a.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_a.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_a.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -562,18 +523,10 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
             CASE ("load-random-poly-b")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_b.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_b.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_b.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_b.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_b.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -595,18 +548,10 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
             CASE ("load-random-exp-a")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_a.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_a.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_a.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_a.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_a.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -620,7 +565,7 @@ module function_ops
                            end do
                         else
                            do ll=1,3                        	
-                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(5.0_pr-(norm_K/(real(n(1),pr)/4.0_pr)))
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(-norm_K/5.0_pr)
                            end do
                         END IF
                      END DO
@@ -628,18 +573,10 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
                
             CASE ("load-random-exp-b")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_b.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_b.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_b.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_b.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_b.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
@@ -653,7 +590,7 @@ module function_ops
                            end do
                         else
                            do ll=1,3                        	
-                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(5.0_pr-(norm_K/(real(n(1),pr)/4.0_pr)))
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*10.0_pr**(-norm_K/5.0_pr)
                            end do
                         END IF
                      END DO
@@ -661,21 +598,13 @@ module function_ops
                END DO
                CALL fftbwdv(faux, aux)
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
 
             CASE ("load-random-smooth-b")
-               if(n(1)==32) then
-                  filename = "./input/n0032_random_b.nc"
-               elseif(n(1)==64) then
-                  filename = "./input/n0064_random_b.nc"
-               elseif(n(1)==128) then
-                  filename = "./input/n0128_random_b.nc"
-               elseif(n(1)==256) then
-                  filename = "./input/n0256_random_b.nc"
-               endif
+               filename = inputDir//"n"//auxStr//"_random_b.nc"
                CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
                do kk=1,3
-                  call dealias_scalar(phi_pert(:,:,:,kk), 3.0_pr)
+                  call dealias_scalar(phi_pert(:,:,:,kk), 20.0_pr)
                end do
 
             CASE ("save-random")
@@ -700,25 +629,13 @@ module function_ops
                CALL fftbwdv(faux, aux)
 
                phi_pert = real(aux,pr)
-               call div_free(phi_pert)
+               call divAvg_free(phi_pert)
 
                ! normalization
-               l2NormTestLoc = field_inner_product(phi_pert,phi_pert,"L2")
-               !print*, "l2NormTestLoc", l2NormTestLoc         
-               CALL MPI_ALLREDUCE(l2NormTestLoc, l2NormTestGlob, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-               normalization_const = 100.0_pr*sum(l2NormTestGlob)
+               normalization_const = 100.0_pr*global_summed_field_inner_product(phi_pert,phi_pert,"L2")
 
                phi_pert(:,:,:,:) = phi_pert(:,:,:,:)/normalization_const
 
-               if (n(1)<100) then
-                  WRITE(auxStr, '(i2)') n(1)
-                  auxStr = '00'//auxStr(1:2)
-               elseif (n(1)<1000) then
-                  WRITE(auxStr, '(i3)') n(1)
-                  auxStr = '0'//auxStr(1:3)
-               else
-                  WRITE(auxStr, '(i4)') n(1)
-               end if
                filename = HomeDir//"n"//auxStr//"_random.nc"
                CALL save_field_R3toR3_ncdf(phi_pert(:,:,:,1), phi_pert(:,:,:,2), phi_pert(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
 
@@ -728,25 +645,31 @@ module function_ops
       END SUBROUTINE kappa_test_pert
       
       !=========================================================
-      ! Calculate the L^2 derivative of ||u||_q^q = B^q
-      ! nabla ||u||_q^q = q |u|^{q-2} u
+      ! Calculate the L^2 derivative of ||u||_q = B
+      ! q ||u||_q^{q-1} nabla ||u||_q = nabla ||u||_q^q = q |u|^{q-2} u
+      ! nabla ||u||_q = ||u||_q^{1-q} |u|^{q-2} u
       !=========================================================
-      function calcConstraintDerivativeL2(u, q) result(resultVec)
+      function calcConstraintDerivativeL2(u) result(resultVec)
          use global_variables
          implicit none
-         real(pr), intent(in) :: q
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: u
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: resultVec
          real(pr), dimension(1:n(1),1:n(2),1:local_N) :: aux_u_q2
+         real(pr) :: norm
          integer :: ii
 
-         call calc_uk(u,q-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
+         norm = calc_global_Lq_norm(u)
+
+         call calc_uk(u,lebesgueQ-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
 
          resultVec = 0.0_pr
          do ii = 1,3
-            resultVec(:,:,:,ii) = q*aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = q|u|^{q-2}u
-            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(resultVec(:,:,:,ii), 2.0_pr)
+            resultVec(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = |u|^{q-2}u
+            if (toDealias .and. (lebesgueQ-2.0_pr > mach_epsilon)) call dealias_scalar(resultVec(:,:,:,ii), 2.0_pr)
          end do
+
+         resultVec(:,:,:,:) = (norm**(1.0_pr - lebesgueQ)) * resultVec(:,:,:,:)
+
          
       end function calcConstraintDerivativeL2
 
@@ -769,6 +692,31 @@ module function_ops
          end if
       end subroutine calculateSaveSpectrum
 
+      !=========================================================
+      ! Calculate and save spectrum of a matrixfield
+      !=========================================================
+      subroutine calculateSaveSpectrumMatrix(matrix, fileName)
+         use global_variables
+         use fftwfunction
+         use data_ops
+         use mpi
+         implicit none
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3), intent(in) :: matrix
+         CHARACTER(len=*), INTENT(IN) :: fileName
+         real(pr), dimension(1:n(1),1:2,1:3) :: spectrumPart
+         real(pr), dimension(1:n(1),1:2) :: spectrum
+         integer :: ii
+         
+         spectrum = 0.0_pr
+         do ii = 1,3
+            CALL calculate_spectral_data(matrix(:,:,:,:,ii), spectrumPart(:,:,ii))
+            spectrum(:,:) = spectrum(:,:) + spectrumPart(:,:,ii)
+         end do
+         IF (rank==0) THEN
+            CALL save_spectral_data(Spectrum, fileName)
+         end if
+      end subroutine calculateSaveSpectrumMatrix
+
 
       !=========================================================
       ! Calculate L2-gradient of Lp right hand side in physical space
@@ -787,11 +735,10 @@ module function_ops
       !=========================================================
 
 
-      function GradL2ForLq(U, q) result (V)
+      function GradL2ForLq(U) result (V)
          use global_variables
          use fftwfunction
          implicit none
-         real(pr) :: q
          integer :: ii
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: U
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: V
@@ -825,9 +772,9 @@ module function_ops
 
          !print*, "GradL2ForLq"
 
-         call calc_uk(u,q-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
+         call calc_uk(u,lebesgueQ-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
          
-         call calc_uk(u,q-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
+         call calc_uk(u,lebesgueQ-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
          
 
          call calc_nablaUnablaUt(u, aux)                             ! aux = nabla u : nabla u^T
@@ -853,7 +800,7 @@ module function_ops
          
          do ii = 1,3
             aux_uq2u(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = |u|^{q-2}u
-            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux_uq2u(:,:,:,ii), 2.0_pr)
+            if (toDealias .and. (lebesgueQ-2.0_pr > mach_epsilon)) call dealias_scalar(aux_uq2u(:,:,:,ii), 2.0_pr)
          end do
          
 
@@ -885,12 +832,12 @@ module function_ops
             if (toDealias) call dealias_scalar(aux3_vec(:,:,:,ii), 2.0_pr)
 
             aux4_vec(:,:,:,ii) = aux_u_q2(:,:,:)*aux_gradP(:,:,:,ii) ! aux4_vec = |u|^{q-2} nabla p
-            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux4_vec(:,:,:,ii), 2.0_pr)
+            if (toDealias .and. (lebesgueQ-2.0_pr > mach_epsilon)) call dealias_scalar(aux4_vec(:,:,:,ii), 2.0_pr)
 
             aux6_vec(:,:,:,ii) = aux_u_q2(:,:,:)*aux_DeltaU(:,:,:,ii)! aux6_vec = |u|^{q-2} Delta u
-            if (toDealias .and. (q-2.0_pr > mach_epsilon)) call dealias_scalar(aux6_vec(:,:,:,ii), 2.0_pr)
+            if (toDealias .and. (lebesgueQ-2.0_pr > mach_epsilon)) call dealias_scalar(aux6_vec(:,:,:,ii), 2.0_pr)
 
-            v(:,:,:,ii) = (q-2.0_pr) * aux3_vec(:,:,:,ii) &
+            v(:,:,:,ii) = (lebesgueQ-2.0_pr) * aux3_vec(:,:,:,ii) &
                - pressureCoefficient * aux4_vec(:,:,:,ii) &
                - pressureCoefficient * 2.0_pr * aux5_vec(:,:,:,ii) &
                + viscCoefficient * visc * aux6_vec(:,:,:,ii) &
@@ -916,11 +863,13 @@ module function_ops
       !         =                 R_1                    +                              R_2                             +                       R_3
       !         = R
       ! p = Delta^{-1} (nabla u cdot nabla u^T)
+      ! returns (/ R, R1+R2, R3 /)  = (/ localResult, viscosityContribution, nonlinearPressureContribution  /)
       !=========================================================
-      function calc_dLqdt(u, q) result (local_R)
+      function calc_local_dLqdt_inclParts(u, q) result (local_result)
          use global_variables
          implicit none
-         real(pr) :: q, R_1, R_2, R_3, local_R
+         real(pr) :: q, R_1, R_2, R_3
+         real(pr), dimension(3) :: local_result
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
          real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_u_q4, aux_p, aux_uugradu, aux
          
@@ -954,9 +903,55 @@ module function_ops
          R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
          !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
 
-         local_R = R_1 + R_2 + R_3
+         local_result = (/R_1 + R_2 + R_3, R_1+R_2, R_3/)
 
-      end function calc_dLqdt
+      end function calc_local_dLqdt_inclParts
+
+      !=========================================================
+      ! Calculate d/dt Lq right hand side in physical space
+      !                    local
+      !=========================================================
+      ! returns localResult (scalar)
+      !=========================================================
+      function calc_local_dLqdt(u, q) result (local_result)
+         use global_variables
+
+         real(pr), dimension(3) :: local_result_inclParts
+         real(pr) :: local_result
+         real(pr), intent(in) :: q
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         
+         local_result_inclParts = calc_local_dLqdt_inclParts(u,q)
+         local_result = local_result_inclParts(1)
+
+      end function calc_local_dLqdt
+
+
+      !=========================================================
+      ! Calculate d/dt Lq right hand side in physical space
+      !                    global
+      !=========================================================
+      ! d/dt Lq = - nu || |u|^((q-2)/2) |nabla u| ||_2^2 - 4(q-2)/q^2 nu ||nabla |u|^(q/2)||_2^2                        + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+      !         = - nu int |u|^(q-2) |nabla u|^2         - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k   + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+      !         =                 R_1                    +                              R_2                             +                       R_3
+      !         = R
+      ! p = Delta^{-1} (nabla u cdot nabla u^T)
+      ! returns (/ R, R1+R2, R3 /)  = (/ globalResult, globalViscosityContribution, globalNonlinearPressureContribution  /)
+      !=========================================================
+      function calc_global_dLqdt_inclParts(u, q) result (global_result_R_Rvisc_Rnonlin)
+         use global_variables
+         use mpi
+         implicit none
+         real(pr), intent(in) :: q
+         real(pr) :: R_ges, R_visc, R_nonLin
+         real(pr), dimension(3) :: local_result, global_result_R_Rvisc_Rnonlin
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_u_q4, aux_p, aux_uugradu, aux
+         
+         local_result = calc_local_dLqdt_inclParts(u,q)
+         call mpi_allreduce(local_result, global_result_R_Rvisc_Rnonlin, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+
+      end function calc_global_dLqdt_inclParts
 
 
 
@@ -1104,21 +1099,20 @@ module function_ops
       ! Calculate L^q norm
       ! result = (int |u|^q)^(1/q) where |u|^q is calculated using dealiasing
       !=========================================================
-      function calc_global_Lq_norm(u,q) result (norm)
+      function calc_global_Lq_norm(u) result (norm)
          use global_variables
          implicit none
 
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
-         real(pr), intent(in) :: q
          real(pr), dimension(:,:,:), allocatable :: aux
          real(pr) :: norm
          real(pr) :: inner_prod
 
          allocate ( aux(1:n(1),1:n(2),1:local_n) )
 
-         call calc_uk(u,q/(2.0_pr),aux)
+         call calc_uk(u,lebesgueQ/(2.0_pr),aux)
          inner_prod = global_inner_product(aux,aux,"L2")
-         norm = inner_prod**(1.0_pr/q)
+         norm = inner_prod**(1.0_pr/lebesgueQ)
 
          deallocate(aux)
          
@@ -1129,14 +1123,14 @@ module function_ops
       ! rescale to ||u||_q = B
       ! u = B u/||u||_q
       !=========================================================
-      subroutine rescaleLqNorm(u, q, B)
+      subroutine rescaleLqNorm(u, B)
          use global_variables
          implicit none
-         real(pr), intent(in) :: q, B
+         real(pr), intent(in) :: B
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(inout) :: u
          real(pr) :: LqNorm
          
-         LqNorm = calc_global_Lq_norm(u,q)
+         LqNorm = calc_global_Lq_norm(u)
          u(:,:,:,:) = B/LqNorm*u(:,:,:,:)
 
       end subroutine rescaleLqNorm
@@ -1173,7 +1167,7 @@ module function_ops
 
          intResult = global_summed_field_inner_product(aux,xi,"L2")              ! \int |u+eta|^{q-2}(u+eta)cdot xi
          
-         Lq_norm = calc_global_Lq_norm(uPlusEta,q)
+         Lq_norm = calc_global_Lq_norm(uPlusEta)
 
          resultVec(:,:,:,:) = xi(:,:,:,:) - Lq_norm**(-q)*intResult*uPlusEta(:,:,:,:)  !                 xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi
          resultVec(:,:,:,:) = B/Lq_norm*resultVec(:,:,:,:)                                ! B/||u+eta||_q [ xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi ]
@@ -1402,7 +1396,9 @@ module function_ops
          integer :: ii,jj,kk
 
          if (k+mach_epsilon<0) then
-            if(rank == 0 .and. abs(lebesgueQ-2.0_pr)>mach_epsilon) then
+            if(rank == 0 .and. abs(lebesgueQ-2.0_pr)>mach_epsilon .and. dividingByZeroWarnings>0) then
+               dividingByZeroWarnings = dividingByZeroWarnings - 1
+               if(dividingByZeroWarnings==0) print*, "WARNING: STOPPING THE DIVIDING BY 0 WARNING"
                print*, "warning (in calc_gk_order2) calculating g^{-|x|}, setting y/0 terms to 0"
             end if
             where (abs(g) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
@@ -1569,7 +1565,7 @@ module function_ops
       !============================================================
       !--Diagnostics: |U|, |W|, stretching factor
       !============================================================
-      SUBROUTINE diagnosticScalars(U, myIter)
+      SUBROUTINE diagnosticScalars(U)
          USE global_variables
          USE data_ops
          USE fftwfunction
@@ -1578,7 +1574,6 @@ module function_ops
 
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(INOUT) :: U
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: W
-         INTEGER, INTENT(IN) :: myIter
          REAL(pr), DIMENSION(:,:), ALLOCATABLE :: Spectrum
          REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux
          REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: auxVec, allDiagFields
@@ -1587,10 +1582,6 @@ module function_ops
          REAL(pr), DIMENSION(1:3) :: myPoint, myNormal
          INTEGER :: nn, i1, i2, i3 
          INTEGER, PARAMETER :: numDiagFields = 4 
-         character(3) :: myIterString
-         character(2) :: mybIter
-         WRITE(myIterString, '(i3.3)') myIter
-         WRITE(mybIter, '(i2.2)') B_list_iterator
 
          ALLOCATE( Spectrum(1:n(1),1:2) )
          CALL calculate_spectral_data(U, Spectrum)
@@ -1662,9 +1653,8 @@ module function_ops
 
 
          CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore")
-         CALL calculateSaveSpectrum(u,"u"//"_B"//mybIter//"_final_iter"//myIterString)
 
-         IF (rank==0) THEN
+         IF (rank==0 .and. save_diag_fields_values) THEN
             CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
          END IF
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
@@ -1697,7 +1687,7 @@ module function_ops
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
          INTEGER :: i, i1, i2, i3, mode_count
          REAL(pr) :: kk_min, kk_max, norm_K
-         REAL(pr) :: local_spectral_data, global_spectral_data, spectral_Ener
+         REAL(pr) :: local_spectral_data, global_spectral_data, spectral_Ener, L2norm
          REAL(pr), DIMENSION(1:3) :: local_q3, Ener
 
          ALLOCATE( fu(1:n(1),1:n(2),1:local_N,1:3) )
@@ -1737,6 +1727,12 @@ module function_ops
          !spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
          !if(rank==0) print*, "spectral factor, should it be 1?", SUM(Ener)/spectral_Ener
          !spectral_data(:,2) = SUM(Ener)/spectral_Ener*spectral_data(:,2)
+
+         if(normalizeSpectrumByL2Norm) then
+            L2norm = global_summed_field_inner_product(u,u,"L2")
+            spectral_Ener = 2.0_pr*PI*SUM(spectral_data(:,2))
+            spectral_data(:,2) = L2norm/spectral_Ener*spectral_data(:,2)
+         end if
 
          DEALLOCATE( fu )
          DEALLOCATE( aux )
@@ -1906,9 +1902,9 @@ module function_ops
 
 
       !=====================================================================
-      ! OBTAINS THE DIV_FREE PORJECTION OF A GIVEN VECTOR FIELD
+      ! OBTAINS THE divAvg_free AND AVG_FREE PORJECTION OF A GIVEN VECTOR FIELD
       !=====================================================================
-      SUBROUTINE div_free(myfield)
+      SUBROUTINE divAvg_free(myfield)
          USE global_variables
          use fftwfunction
          IMPLICIT NONE
@@ -1930,11 +1926,20 @@ module function_ops
          ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( divU_hat(1:n(1),1:n(2),1:local_N) )
          ALLOCATE( grad_phi_hat(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( U_hat(1:n(1),1:n(2),1:local_N,1:3) )
 
          CALL divergence(myfield, divU)
          aux = dcmplx(divU,0.0_pr)
          CALL fftfwd(aux,faux)
          divU_hat = faux
+
+
+         DO ii=1,3
+            aux(:,:,:) = dcmplx(myfield(:,:,:,ii), 0.0_pr)
+            CALL fftfwd(aux, faux)
+            U_hat(:,:,:,ii) = faux
+         END DO
+
          DO i3 = 1, local_N
             DO i2 = 1, n(2)
                DO i1 = 1, n(1)        
@@ -1947,6 +1952,9 @@ module function_ops
                      grad_phi_hat(i1,i2,i3,1) = 0.0_pr
                      grad_phi_hat(i1,i2,i3,2) = 0.0_pr
                      grad_phi_hat(i1,i2,i3,3) = 0.0_pr 
+                     U_hat(i1,i2,i3,1) = 0.0_pr
+                     U_hat(i1,i2,i3,2) = 0.0_pr
+                     U_hat(i1,i2,i3,3) = 0.0_pr
                   END IF
                END DO 
             END DO
@@ -1956,6 +1964,10 @@ module function_ops
             faux = grad_phi_hat(:,:,:,ii)
             CALL fftbwd(faux,aux)
             grad_phi(:,:,:,ii) = REAL(aux, pr)
+
+            faux = U_hat(:,:,:,ii)
+            CALL fftbwd(faux,aux)
+            myfield(:,:,:,ii) = REAL(aux, pr)
          END DO
 
          myfield = myfield - grad_phi
@@ -1966,7 +1978,8 @@ module function_ops
          DEALLOCATE( faux )
          DEALLOCATE( divU_hat )
          DEALLOCATE( grad_phi_hat )
-      END SUBROUTINE div_free
+         deallocate( U_hat )
+      END SUBROUTINE divAvg_free
 
       !======================================================
       ! FIX THE ENSTROPHY OF A GIVEN VELOCITY FIELD
@@ -2091,6 +2104,58 @@ module function_ops
          DEALLOCATE( faux )
 
       END SUBROUTINE vel2vort
+
+
+      !========================================
+      ! CALCULATE 0th fourier modes
+      !========================================
+      function calc0thFourierModes(fullVec) result (globalResVec)
+         USE global_variables
+         use mpi
+         use fftwfunction
+         IMPLICIT NONE
+                     ! 
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: fullVec
+         real(pr), dimension(3) :: localResVec, globalResVec
+         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux_hat, Uy_hat, Uz_hat
+         COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
+         real(pr) :: ksq
+
+         integer :: i1, i2, i3
+
+         ALLOCATE( Ux_hat(1:n(1),1:n(2),1:local_N) ) 
+         ALLOCATE( Uy_hat(1:n(1),1:n(2),1:local_N) ) 
+         ALLOCATE( Uz_hat(1:n(1),1:n(2),1:local_N) ) 
+         ALLOCATE( aux(1:n(1),1:n(2),1:local_N) ) 
+         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
+
+         aux(:,:,:) = dcmplx(fullVec(:,:,:,1), 0.0_pr)
+         CALL fftfwd(aux, faux)
+         Ux_hat = faux
+         aux(:,:,:) = dcmplx(fullVec(:,:,:,2), 0.0_pr)
+         CALL fftfwd(aux, faux)
+         Uy_hat = faux
+         aux(:,:,:) = dcmplx(fullVec(:,:,:,3), 0.0_pr)
+         CALL fftfwd(aux, faux)
+         Uz_hat = faux
+
+         localResVec = 0.0_pr
+         DO i3 = 1, local_N
+            DO i2 = 1, n(2)
+               DO i1 = 1, n(1)        
+                  ksq = K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2
+                  if (ksq < MACH_EPSILON) THEN
+                     localResVec(1) = Ux_hat(i1,i2,i3)
+                     localResVec(2) = Uy_hat(i1,i2,i3)
+                     localResVec(3) = Uz_hat(i1,i2,i3)
+                  end if
+               END DO 
+            END DO
+         END DO
+
+         call mpi_allreduce(localResVec, globalResVec, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+
+      end function
 
 
       !========================================
@@ -2383,7 +2448,10 @@ module function_ops
             DO i2 = 1, n(2)
                DO i1 = 1, n(1)
                   norm_k = SQRT(K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2)
-                  if( norm_k > k_cut_deal ) then
+                  !if( norm_k > k_cut_deal ) then
+                  !   f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
+                  !end if
+                  if( max(abs(K1(i1)),abs(K2(i2)),abs(K3(i3+local_k_offset))) > k_cut_deal ) then
                      f(i1,i2,i3) = dcmplx(0.0_pr,0.0_pr)
                   end if
                END DO
@@ -2428,22 +2496,21 @@ module function_ops
                   END DO
                END DO
             END DO
-            local_inn_prod = local_inn_prod*dV
 
+            inn_prod = local_inn_prod*dV
 
-
-            inn_prod = local_inn_prod
-         case ("H_l^((3q-1)/(2q))")
+         case ("H^(3/2-1/q)")
             aux = dcmplx(f,0.0_pr)
             CALL fftfwd(aux, fhat)
             aux = dcmplx(g,0.0_pr)
             CALL fftfwd(aux, ghat)
-            order = (3.0_pr*lebesgueQ-1.0_pr)/(2.0_pr*lebesgueQ)
+            order = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
             DO i3=1,local_N
                DO i2=1,n(2)
                   DO i1=1,n(1)
                      ksq = sqrt( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
-                     factor = 1.0_pr + (lambda1*ksq)**order + (lambda2*ksq)**(2*order)
+                     !factor = 1.0_pr + ksq**order
+                     factor = (1.0_pr + ksq)**order
                      fhat(i1,i2,i3) = factor * fhat(i1,i2,i3)
                      ghat(i1,i2,i3) = factor * ghat(i1,i2,i3)
                   END DO
@@ -2455,6 +2522,40 @@ module function_ops
             g_aux = REAL(aux,pr)
             inn_prod = inner_product(f_aux,g_aux,"L2")
 
+         case ("H_l^(3/2-1/q)")
+            aux = dcmplx(f,0.0_pr)
+            CALL fftfwd(aux, fhat)
+            aux = dcmplx(g,0.0_pr)
+            CALL fftfwd(aux, ghat)
+            order = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
+            DO i3=1,local_N
+               DO i2=1,n(2)
+                  DO i1=1,n(1)
+                     ksq = sqrt( K1(i1)**2 + K2(i2)**2 + K3(i3+local_k_offset)**2 )
+                     factor = 1.0_pr + (lambda1*ksq)**order
+                     !factor = (1.0_pr + lambda1*ksq)**order
+                     fhat(i1,i2,i3) = factor * fhat(i1,i2,i3)
+                     ghat(i1,i2,i3) = factor * ghat(i1,i2,i3)
+                  END DO
+               END DO
+            END DO
+            CALL fftbwd(fhat, aux)
+            f_aux = REAL(aux,pr)
+            CALL fftbwd(ghat, aux)
+            g_aux = REAL(aux,pr)
+            inn_prod = inner_product(f_aux,g_aux,"L2")
+
+         case ("H^((3q-1)/(2q))")
+            if(rank==0) print*, "ERROR IN function_ops.f90 inner_product case H^((3q-1)/(2q)): you are probably using an old (wrong) exponent"
+            call exit
+            inn_prod = 0
+
+         case ("H_l^((3q-1)/(2q))")
+            if(rank==0) print*, "ERROR IN function_ops.f90 inner_product case H_l^((3q-1)/(2q)): you are probably using an old (wrong) exponent"
+            call exit
+            inn_prod = 0
+         case default
+            print*, "WARNING", "TYPE ", mytype, " NOT DEFINED (as inner product)"
          END SELECT
 
          DEALLOCATE( fhat )
@@ -2483,35 +2584,35 @@ module function_ops
       END FUNCTION global_inner_product
 
       !=======================================================
+      ! DEPRECATED   (just use global_summed_field_inner_product)
       ! CALCULATE THE INNER PRODUCT BETWEEN TWO (vector) FIELDS
       !=======================================================
-      FUNCTION field_inner_product(f,g,mytype) RESULT (inn_prod)
-         USE global_variables
-         IMPLICIT NONE
-   
-         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: f,g
-         CHARACTER(len=*), INTENT(IN) :: mytype
-      
-         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: faux, gaux
-         REAL(pr), DIMENSION(1:3) :: inn_prod
-
-         INTEGER :: ii
-      
-         ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
-         ALLOCATE( gaux(1:n(1),1:n(2),1:local_N) )
-      
-
-         inn_prod = 0.0_pr
-         DO ii=1,3
-            faux(:,:,:) = f(:,:,:,ii)
-            gaux(:,:,:) = g(:,:,:,ii)
-            inn_prod(ii) =  inner_product(faux, gaux, mytype)
-         END DO
-
-         DEALLOCATE(faux)
-         DEALLOCATE(gaux)       
-   
-      END FUNCTION field_inner_product 
+      !FUNCTION field_inner_product(f,g,mytype) RESULT (inn_prod)
+      !   USE global_variables
+      !   IMPLICIT NONE   
+      !   REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: f,g
+      !   CHARACTER(len=*), INTENT(IN) :: mytype
+      !
+      !   REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: faux, gaux
+      !   REAL(pr), DIMENSION(1:3) :: inn_prod
+      !
+      !   INTEGER :: ii
+      !
+      !   ALLOCATE( faux(1:n(1),1:n(2),1:local_N) )
+      !   ALLOCATE( gaux(1:n(1),1:n(2),1:local_N) )
+      !
+      !
+      !   inn_prod = 0.0_pr
+      !   DO ii=1,3
+      !      faux(:,:,:) = f(:,:,:,ii)
+      !      gaux(:,:,:) = g(:,:,:,ii)
+      !      inn_prod(ii) =  inner_product(faux, gaux, mytype)
+      !   END DO
+      !
+      !   DEALLOCATE(faux)
+      !   DEALLOCATE(gaux)       
+      !
+      !END FUNCTION field_inner_product 
 
       !=======================================================
       ! CALCULATE THE GLOBAL SUMMED INNER PRODUCT BETWEEN TWO (vector) FIELDS
@@ -2522,19 +2623,25 @@ module function_ops
          IMPLICIT NONE
    
          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: f,g
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N) :: faux,gaux
+         integer :: ii
          real(pr), dimension(1:3) :: local_inner, global_inner
          CHARACTER(len=*), INTENT(IN) :: mytype
          REAL(pr) :: inn_prod
 
-         local_inner = field_inner_product(f,g,mytype)
-         call mpi_allreduce(local_inner, global_inner, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
-         inn_prod = sum(global_inner)
+
+         inn_prod = 0.0_pr
+         DO ii=1,3
+            faux(:,:,:) = f(:,:,:,ii)
+            gaux(:,:,:) = g(:,:,:,ii)
+            inn_prod = inn_prod + global_inner_product(faux, gaux, mytype)
+         END DO
 
       END FUNCTION global_summed_field_inner_product 
 
       !======================================================
-      ! CALCULATE THE SOBOLEV GRADIENT OF ORDER P, GIVEN
-      ! THE L2 GRADIENT
+      ! CALCULATE THE SOBOLEV GRADIENT OF ORDER order, GIVEN THE L2 GRADIENT
+      ! i.e. Fourier (gradOut) = Fourier (gradIn) / (1+l|xi|)^(2*order)
       !======================================================
       SUBROUTINE SobolevGradient(grad, order)
          USE global_variables
@@ -2564,7 +2671,8 @@ module function_ops
             DO jj=1,n(2)
                DO ii=1,n(1)
                   ksq = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
-                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (lambda1*ksq)**order + (lambda2*ksq)**(2*order) )
+                  grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( 1.0_pr + (lambda1*ksq)**(2.0_pr*order) )
+                  !grad_hat(ii,jj,kk,:) = grad_hat(ii,jj,kk,:)/( (1.0_pr + lambda1*ksq)**(2.0_pr*order) )
                END DO
             END DO
          END DO

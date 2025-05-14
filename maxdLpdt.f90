@@ -50,15 +50,19 @@
       ! iguess 4 = load random expSpec a
       ! iguess 5 = load random polySpec a
       ! iguess 6 = load random k a
-      ! iguess 10 = load previous (filename = nXYZ_nice.nc)
+      ! iguess 9 = load temp &loadTempFunctionName
       ! iguess 50 = Arnold-Beltrami-Childress, ...
-      ! iguess 9 = load temp
       !=============================================
       iguess = 50
-      bIterOffset = 8       ! should match the loaded iteration or 0 if new
+
+      if(iguess==9) then
+         loadTempFunctionName = "u_result_B32_0512.nc"
+      end if
+
+      bIterOffset = 0       ! should match the loaded iteration or 0 if new
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 4.0_pr
+      lebesgueQ = 3.0_pr
 
       
       IF (rank==0) print*, "start"
@@ -96,13 +100,23 @@
       allocate( B_list(1:32+bIterOffset) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
       
-      B_list(1) = 0.1_pr
-      do B_list_iterator=2,size(B_list)
-         constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
-         if(constraintB>30.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
-         !if(constraintB>80.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
-         B_list(B_list_iterator) = constraintB         
-      end do
+
+      if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+         B_list(1) = 0.1_pr
+         do B_list_iterator=2,size(B_list)
+            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
+            if(constraintB>30.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+            B_list(B_list_iterator) = constraintB         
+         end do
+      else
+         B_list(1) = 1.0_pr
+         do B_list_iterator=2,size(B_list)
+            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
+            if(constraintB>150.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/16.0_pr)
+            if(constraintB>170.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+            B_list(B_list_iterator) = constraintB
+         end do
+      end if
 
       !=========================================================
       ! Loop over different values of constraint B values

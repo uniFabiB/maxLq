@@ -228,25 +228,29 @@ MODULE data_ops
                !A = char
                !I = integer
                !G = general
-               write(10, "(A20, I20)") "resol", n(1)
-               write(10, "(A20, ES20.12)") "lebesgueQ", lebesgueQ
-               write(10, "(A20, G20.12)") "iguess", iguess
+               write(10, "(A20, I40)") "resol", n(1)
+               write(10, "(A20, ES40.12)") "lebesgueQ", lebesgueQ
+               write(10, "(A20, G40.12)") "iguess", iguess
+               write(10, "(A20, A40)") "loadTempFunctionName", loadTempFunctionName
                write(10, "(A20)") " "
-               write(10, "(A20, G20.12)") "useOrthogonalGradient", useOrthogonalGradient
-               write(10, "(A20, G20.12)") "useConjugateGradient", useConjugateGradient
+               write(10, "(A20, G40.12)") "useOrthogonalGradient", useOrthogonalGradient
+               write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
                
-               write(10, "(A20, G20.12)") "useRiemannianGeometry", useRiemannianGeometry
+               write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry
                write(10, "(A20)") " "
-               write(10, "(A20, G20.12)") "MAX_ITER", MAX_ITER
-               write(10, "(A20, I20)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
-               write(10, "(A20, ES20.12)") "OPTIM_TOL", OPTIM_TOL
-               write(10, "(A20, ES20.12)") "MACH_EPSILON", MACH_EPSILON
-               write(10, "(A20, ES20.12)") "TAU_MAX", TAU_MAX
-               write(10, "(A20, ES20.12)") "lambda1", lambda1
+               write(10, "(A20, G40.12)") "MAX_ITER", MAX_ITER
+               write(10, "(A20, I40)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
+               write(10, "(A20, ES40.12)") "OPTIM_TOL", OPTIM_TOL
+               write(10, "(A20, ES40.12)") "MACH_EPSILON", MACH_EPSILON
+               write(10, "(A20, ES40.12)") "TAU_MAX", TAU_MAX
+               write(10, "(A20, ES40.12)") "lambda1", lambda1
                write(10, "(A20)") " "
-               write(10, "(A20, ES20.12)") "visc", visc
-               write(10, "(A20, G20.12)") "viscCoefficient", viscCoefficient
-               write(10, "(A20, G20.12)") "pressureCoefficient", pressureCoefficient
+               write(10, "(A20, ES40.12)") "visc", visc
+               write(10, "(A20, G40.12)") "viscCoefficient", viscCoefficient
+               write(10, "(A20, G40.12)") "pressureCoefficient", pressureCoefficient
+               write(10, "(A20)") " "
+               write(10, "(A20, I40)") "local_N", local_N
+               write(10, "(A20, I40)") "total_local_size", total_local_size
 
                close(10)
             end if
@@ -1240,11 +1244,11 @@ MODULE data_ops
         !============================================
         ! Save results from kappa test
         !============================================
-        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, myindex, identifier)
+        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa_adj, kappa, adj_factor, myindex, identifier)
           USE global_variables
           IMPLICIT NONE
 
-          REAL(pr), INTENT(IN) :: eps, kappa, inner_prod, deltaJ
+          REAL(pr), INTENT(IN) :: eps, kappa_adj, kappa, adj_factor, inner_prod, deltaJ
           INTEGER, INTENT(IN) :: myindex
           CHARACTER(len=*), INTENT(IN) :: identifier
           CHARACTER(99) :: filePath
@@ -1263,12 +1267,12 @@ MODULE data_ops
           filePath=trim(filePath)
           IF (myindex==1) THEN 
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
-             WRITE(10, "(6 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa", "LOG10(ABS(kappa-1))"
-             WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+             WRITE(10, "(9 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa_adj", "LOG10|kap_adj-1|", "kappa", "LOG10|kap-1|", "adj_factor"
+             WRITE(10, "(9 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr)), kappa, LOG10(ABS(kappa - 1.0_pr)), adj_factor
              CLOSE(10)
           ELSE
              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-             WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+             WRITE(10, "(9 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr)), kappa, LOG10(ABS(kappa - 1.0_pr)), adj_factor
              CLOSE(10)
           END IF 
  

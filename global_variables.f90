@@ -14,7 +14,7 @@ MODULE global_variables
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
   integer, parameter :: resol = 128
-  real(pr), save :: lambda1 = 0.01_pr
+  real(pr), save :: lambda1 = 0.1_pr
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
@@ -26,6 +26,7 @@ MODULE global_variables
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
   CHARACTER(len=*), parameter :: inputDir = "/home/fabianbl/projects/rrg-bprotas/fabianbl/prog/input/"
   CHARACTER(len=:), allocatable :: ConstraintDir
+  CHARACTER(len=:), allocatable :: loadTempFunctionName
 
 
   !debug params!
@@ -33,14 +34,14 @@ MODULE global_variables
   logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal     
   real(pr) :: checkDivergenceTolerance = 1.0e-15            ! tolerance to still be considered divergence free
   real(pr) :: checkNormalTolerance = 1.0e-12                ! tolerance to still be considered orthogonal
-  real(pr) :: checkAverageTolerance = 1.0e-7                ! tolerance such that velocity < checkAverageTolerance*constraintB 
+  real(pr) :: checkAverageTolerance = 1.0e-5                ! tolerance such that velocity < checkAverageTolerance*constraintB 
                                                                         !is still be considered average free     
 
-  LOGICAL :: kappaTest = .false.
-  logical :: adjustedKappaInsteadOfKappa = .true.
+  LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
-  integer :: save_vectorFieldsEveryXiteration = 10            ! <1 for never    
+  integer :: save_scalarFieldsEveryXiteration = 10           ! <1 for never
+  integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
   integer :: save_spectraEveryXiteration = 1                 ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 

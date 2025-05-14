@@ -77,7 +77,7 @@ module optimization
          ! PRINT INITIAL VALUES
          !===============================
          if(rank==0) print*, iter, "iteration"
-         if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_visc/(|J_v|+|J_n|)", "J_nonLin/(|J_v|+|J_n|)"
+         if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_v/(|J_v|+|J_n|)", "J_n/(|J_v|+|J_n|)"
          test = calc_global_Lq_norm(Uvec)
          testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
          testVec(1) = abs(testVec(2)) + abs(testVec(3))
@@ -143,8 +143,8 @@ module optimization
                if(rank==0) print*, "WARNING", achar(9), achar(9), "abs(inner(gradJproj,normalHs)/||gradJproj+normalHs||^2)", test, ">", checkNormalTolerance, "should be 0"
                call optim_msg_handle(42)
                !call kappa_test(uvec, normalHs, .false., "||u||_q", "projection normal", "H_l^(3/2-1/q)")
-            else
-               if(iter == 1 .and. kappaTest) call kappa_test(uvec, normalHs, .false., "||u||_q", "projection normal", "H_l^(3/2-1/q)")
+            !else
+               !if(iter == 1 .and. kappaTest) call kappa_test(uvec, normalHs, .true., "||u||_q", "projection normal", "H_l^(3/2-1/q)")       !kappa test for projection onto tangent space normal = derivative
             end if
             call divergence(gradJproj, f_scalar)
             test = global_inner_product(f_scalar,f_scalar,"L2")/global_summed_field_inner_product(gradJproj,gradJproj,"H_l^(3/2-1/q)")
@@ -277,6 +277,9 @@ module optimization
                vecTransported_d0 = d1
             end if
 
+
+            if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)")  
+
             !======================================
             ! update u
             !======================================
@@ -322,8 +325,11 @@ module optimization
                      CALL calculateSaveSpectrum(d1,"d")
                   end if
                end if
-               if(save_vectorFieldsEveryXiteration>0) then
-                  if(modulo(iter, save_vectorFieldsEveryXiteration) == 0) call diagnosticScalars(Uvec)
+               if(save_scalarFieldsEveryXiteration>0) then
+                  if(modulo(iter, save_scalarFieldsEveryXiteration) == 0) call diagnosticScalars(Uvec)
+               end if
+               if(save_uvecEveryXiteration>0) then
+                  if(modulo(iter, save_uvecEveryXiteration) == 0) call save_Ctrl(Uvec, iter, "maxdLqdt_result")
                end if
             END IF
             CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
@@ -332,7 +338,7 @@ module optimization
             !===============================
             ! PRINT RESULTS
             !===============================
-            if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_visc/(|J_v|+|J_n|)", "J_nonLin/(|J_v|+|J_n|)"
+            if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_v/(|J_v|+|J_n|)", "J_n/(|J_v|+|J_n|)"
             test = calc_global_Lq_norm(Uvec)
             testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
             testVec(1) = abs(testVec(2)) + abs(testVec(3))
@@ -368,8 +374,8 @@ module optimization
             if(rank==0) then
                print*, "optimization terminated unsuccessful", iter, MAX_ITER
             end if
-            !CALL kappa_test(uvec0, gradJ1, "end_gradJ1", "H_l^(3/2-1/q)")
             CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
+            CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)")
          end if
 
 
@@ -812,7 +818,7 @@ module optimization
       !REAL(pr), INTENT(IN) :: J0
       REAL(pr) :: J0
       CHARACTER(len=*), INTENT(IN) :: nameOfKappaTest, inner_product_space
-      REAL(pr) :: myepsilon, kappa, deltaJ
+      REAL(pr) :: myepsilon, kappa, kappa_org, deltaJ
       real(pr), dimension(:,:), allocatable :: kappaArray
       REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: phi_pert, phi_bar
       REAL(pr) :: myexp, J1, innerProd
@@ -882,7 +888,7 @@ module optimization
 
 
       J0 = eval_J(phi, mysystem)
-      allocate( kappaArray(kappaTestSize,2) )
+      allocate( kappaArray(kappaTestSize,5) )
 
       DO ii=1,kappaTestSize
          
@@ -892,26 +898,15 @@ module optimization
          phi_bar = phi + myepsilon*phi_pert
 
          J1 = eval_J(phi_bar, mysystem)
-         
+
+         deltaJ = J1-J0
+
          kappa = (J1-J0)/(myepsilon*innerProd)
 
-         kappaArray(ii,:) = (/myepsilon, kappa/)
+         kappaArray(ii,:) = (/myepsilon, innerProd, deltaJ, kappa, kappa/)
 
-         if (rank==0) then
-            if(.not.useAdjustedKappaTest) then
-               print*, achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
-            end if
-         end if
-
-         deltaJ = J1-J0  
-
-         IF (rank==0) THEN
-            if(.not.useAdjustedKappaTest) then
-               CALL save_kappa_test(myepsilon, innerProd, deltaJ, kappa, ii, nameOfKappaTest)
-            end if
-         END IF 
-         
-
+         if (rank==0) print*, achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
+  
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
       END DO
 
@@ -926,7 +921,7 @@ module optimization
       do ii=1,kappaTestSize-(adjAvgSize-1)
          frac = 0.0_pr
          do jj=0,adjAvgSize-1
-            frac = frac + abs(1-abs(kappaArray(ii+jj,2)/kappaArray(ii+jj+1,2)))
+            frac = frac + abs(1-abs(kappaArray(ii+jj,4)/kappaArray(ii+jj+1,4)))
          end do
          if(frac<fracAdjMin) then
             fracAdjMin = frac
@@ -937,26 +932,29 @@ module optimization
       ! best guess for adjusting
       frac = 1.0_pr
       do jj=0,adjAvgSize-1
-         frac = frac*abs(kappaArray(iAdjMin+jj,2))
+         frac = frac*abs(kappaArray(iAdjMin+jj,4))
       end do
-      frac = sign( (frac)**(1.0_pr/(adjAvgSize)) , kappaArray(iAdjMin,2) )
-      kappaArray(:,2) = kappaArray(:,2)/frac
+      frac = sign( (frac)**(1.0_pr/(adjAvgSize)) , kappaArray(iAdjMin,4) )
+      kappaArray(:,4) = kappaArray(:,4)/frac
+
+
+      CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+      
       
 
       if(rank==0) then
          DO ii=1,kappaTestSize
             !(/myepsilon, kappa/) = kappaArray(ii,:) !WHY FORTRAN CAN'T I DO SOMETHING LIKE THIS!!!
             myepsilon = kappaArray(ii,1)
-            kappa = kappaArray(ii,2)
+            innerProd = kappaArray(ii,2)
+            deltaJ = kappaArray(ii,3)
+            kappa = kappaArray(ii,4)
+            kappa_org = kappaArray(ii,5)
             if(useAdjustedKappaTest) then
                print*, achar(9), achar(9), "kappa test adjusted", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
-               CALL save_kappa_test(myepsilon, 0.0_pr, 0.0_pr, kappa, ii, nameOfKappaTest//"--adjusted")
+               CALL save_kappa_test(myepsilon, innerProd, deltaJ, kappa, kappa_org, frac, ii, nameOfKappaTest)
             end if
          END DO
-         if(useAdjustedKappaTest) then
-            print*, achar(9), achar(9), "kappa test adjustment factor", frac
-            CALL save_kappa_test(myepsilon, frac, frac, kappa, 1000, nameOfKappaTest//"--adjusted")
-         end if
       end if
 
       deallocate( kappaArray )

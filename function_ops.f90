@@ -89,22 +89,10 @@ module function_ops
 
             CASE (9)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
-               filename = inputDir//"u_result_B12_0506.nc"
+               !filename = inputDir//"u_result_B32_0512.nc"
+               filename = inputDir//loadTempFunctionName
                CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
                
-
-            CASE (10)                                 ! Can be used when recover from the terminated code
-               !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
-               select case (n(1))
-               case (64)
-                  filename = inputDir//"n64_nice.nc"
-               case (128)
-                  filename = inputDir//"n128_nice.nc"
-               case default
-                  if(rank==0) print*, "ERROR FILE NOT FOUND"
-                  return
-               end select
-               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
             CASE (50)                                   ! Arnold-Beltrami-Childress (ABC) flow
                DO kk=1, local_N
                   DO jj=1, n(2)
@@ -742,9 +730,9 @@ module function_ops
          integer :: ii
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: U
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: V
-         real(pr), dimension(:,:,:), allocatable :: aux_u_q2, aux_u_q4, aux_p, aux, aux1, aux2, aux3, aux4
+         real(pr), dimension(:,:,:), allocatable :: aux_u_q2, aux_p, aux, aux1, aux2, aux3, aux4!, aux_u_q4
          real(pr), dimension(:,:,:), allocatable :: prefac_1, prefac_2, prefac_3
-         real(pr), dimension(:,:,:,:), allocatable :: aux_gradP, aux_DeltaU, aux_uq2u, aux3_vec, aux4_vec, aux5_vec, aux6_vec, aux7_vec, gradU1, gradU2, gradU3
+         real(pr), dimension(:,:,:,:), allocatable :: aux_gradP, aux_DeltaU, aux_uq2u, aux3_vec, aux4_vec, aux5_vec, aux6_vec, aux7_vec, gradU1, gradU2, gradU3, e_u
 
          complex(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: test, ftest
 
@@ -756,8 +744,8 @@ module function_ops
          allocate( aux4(1:n(1),1:n(2),1:local_N) )
          allocate( aux_p(1:n(1),1:n(2),1:local_N) )
          allocate( aux_u_q2(1:n(1),1:n(2),1:local_N) )
-         
-         allocate( aux_u_q4(1:n(1),1:n(2),1:local_N) )
+         !allocate( aux_u_q4(1:n(1),1:n(2),1:local_N) )
+
          allocate( aux_gradP(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux_DeltaU(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux_uq2u(1:n(1),1:n(2),1:local_N,1:3) )
@@ -769,12 +757,13 @@ module function_ops
          allocate( gradU1(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU2(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( gradU3(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( e_u(1:n(1),1:n(2),1:local_N,1:3) )
 
          !print*, "GradL2ForLq"
 
          call calc_uk(u,lebesgueQ-2.0_pr,aux_u_q2)                           ! aux_u_q2 = |u|^{q-2}
          
-         call calc_uk(u,lebesgueQ-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
+         !call calc_uk(u,lebesgueQ-4.0_pr,aux_u_q4)                           ! aux_u_q4 = |u|^{q-4}
          
 
          call calc_nablaUnablaUt(u, aux)                             ! aux = nabla u : nabla u^T
@@ -788,15 +777,16 @@ module function_ops
          
          aux1 = 0.0_pr
          aux2 = 0.0_pr
+         e_u = calc_unitVectorInUdirection(u)
          do ii = 1,3
             !aux2(:,:,:) = aux2(:,:,:) + u(:,:,:,ii)*(viscCoefficient*visc*aux_DeltaU(:,:,:,ii)-pressureCoefficient*aux_gradP(:,:,:,ii)) ! aux2 = u cdot (nu Delta u - nabla p)
-            aux1(:,:,:) = aux1(:,:,:) + u(:,:,:,ii)*aux_DeltaU(:,:,:,ii)   ! aux1 = u cdot Delta u
-            aux2(:,:,:) = aux2(:,:,:) + u(:,:,:,ii)*aux_gradP(:,:,:,ii)    ! aux2 = u cdot grad p
+            aux1(:,:,:) = aux1(:,:,:) + e_u(:,:,:,ii)*aux_DeltaU(:,:,:,ii)   ! aux1 = e_u cdot Delta u
+            aux2(:,:,:) = aux2(:,:,:) + e_u(:,:,:,ii)*aux_gradP(:,:,:,ii)    ! aux2 = e_u cdot grad p
          end do
          if (toDealias) call dealias_scalar(aux1, 2.0_pr)
          if (toDealias) call dealias_scalar(aux2, 2.0_pr)
 
-         aux2(:,:,:) = viscCoefficient*visc*aux1(:,:,:) - pressureCoefficient*aux2(:,:,:) ! aux2 = u cdot (nu Delta u - nabla p)
+         aux2(:,:,:) = viscCoefficient*visc*aux1(:,:,:) - pressureCoefficient*aux2(:,:,:) ! aux2 = e_u cdot (nu Delta u - nabla p)
          
          do ii = 1,3
             aux_uq2u(:,:,:,ii) = aux_u_q2(:,:,:)*u(:,:,:,ii)         ! aux_uq2u = |u|^{q-2}u
@@ -824,11 +814,14 @@ module function_ops
          aux7_vec= aux_uq2u                                          ! aux7_vec = |u|^{q-2} u
          call laplacian(aux7_vec)                                    ! aux7_vec = Delta (|u|^{q-2} u)
 
-         aux2(:,:,:) = aux_u_q4(:,:,:) * aux2(:,:,:)                 ! aux2 = |u|^{q-4} (u cdot (nu Delta u - nabla p))
+         !aux2(:,:,:) = aux_u_q4(:,:,:) * aux2(:,:,:)                 ! aux2 = |u|^{q-4} (u cdot (nu Delta u - nabla p))
+         aux2(:,:,:) = aux_u_q2(:,:,:) * aux2(:,:,:)                 ! aux2 = |u|^{q-2} (e_u cdot (nu Delta u - nabla p))
          if (toDealias) call dealias_scalar(aux2, 2.0_pr)
 
          do ii = 1,3
-            aux3_vec(:,:,:,ii) = aux2(:,:,:) * u(:,:,:,ii)           ! aux3_vec = |u|^{q-4} (u cdot (nu Delta u - nabla p)) u
+            aux3_vec(:,:,:,ii) = aux2(:,:,:) * e_u(:,:,:,ii)           ! aux3_vec = |u|^{q-2} (e_u cdot (nu Delta u - nabla p)) e_u
+            
+            
             if (toDealias) call dealias_scalar(aux3_vec(:,:,:,ii), 2.0_pr)
 
             aux4_vec(:,:,:,ii) = aux_u_q2(:,:,:)*aux_gradP(:,:,:,ii) ! aux4_vec = |u|^{q-2} nabla p
@@ -849,8 +842,12 @@ module function_ops
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
 
-
          end do
+
+
+
+         deallocate( aux, aux1, aux2, aux3, aux4, aux_p, aux_u_q2 )
+         deallocate( aux_gradP, aux_DeltaU, aux_uq2u, aux3_vec, aux4_vec, aux5_vec, aux6_vec, aux7_vec, gradU1, gradU2, gradU3, e_u)
 
       end function GradL2ForLq
 
@@ -871,37 +868,47 @@ module function_ops
          real(pr) :: q, R_1, R_2, R_3
          real(pr), dimension(3) :: local_result
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
-         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_u_q4, aux_p, aux_uugradu, aux
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: e_u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_p, aux_eegradu, aux!, aux_u_q4
          
+         e_u = calc_unitVectorInUdirection(u)
+
          call calc_uk(u, q-2.0_pr, aux_u_q2)             ! aux_u_q2 = |u|^(q-2)
          
          call calc_nablaModSquared(u, aux)               ! aux = |nabla u|^2
-         
          
          R_1 = - viscCoefficient * visc * inner_product(aux_u_q2, aux, "L2")
          !R_1  = - nu int |u|^(q-2) |nabla u|^2
 
 
-         call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
+         !call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
          
-         call calc_ugraduugradu(u, aux)                  ! aux = u_i partial_j u_i u_k partial_j u_k
+         
+         aux = calc_vgraduvgradu(u, e_u)                  ! aux = (e_u)_i partial_j u_i (e_u)_k partial_j u_k
+         
          
 
-         R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q4, aux, "L2")
-         !R_2  = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k
+         R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q2, aux, "L2")
+         !     OLD    R_2 = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k       OLD
+         !R_2 = - (q-2) nu int |u|^(q-2) (e_u)_i partial_j u_i (e_u)_k partial_j u_k
 
 
          call calc_nablaUnablaUt(u, aux)                 ! aux = nabla u : nabla u^T
 
          call solve_poisson(aux, 1.0_pr, aux_p)          ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux2)
 
-         aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
+
+         !aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
+         aux(:,:,:) = aux_p(:,:,:)*aux_u_q2(:,:,:)       ! aux = p |u|^(q-2)
          if (toDealias) call dealias_scalar(aux, 2.0_pr)
 
-         call calc_uugradu(u, aux_uugradu)               ! aux_uugradu = u cdot (u cdot nabla) u
+         aux_eegradu = calc_vvgradu(u, e_u)              ! aux_eegradu = e_u (e_u cdot nabla) u
+         !call calc_uugradu(u, aux_uugradu)               ! aux_uugradu = u cdot (u cdot nabla) u
 
-         R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
-         !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+
+         R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_eegradu, "L2")
+         !     OLD     R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u       OLD
+         ! R_3  = (q-2) int p |u|^(q-2) e_u cdot (e_u cdot nabla) u
 
          local_result = (/R_1 + R_2 + R_3, R_1+R_2, R_3/)
 
@@ -1180,6 +1187,55 @@ module function_ops
 
 
       !=========================================================
+      ! Calculate e_u = u/|u|, where |u| is the euklidean norm -> resultVec
+      !=========================================================
+      function calc_unitVectorInUdirection(u) result (resultVec)
+         use global_variables
+         implicit none
+
+         integer :: ii, a1, a2, a3
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: resultVec
+         real(pr), dimension(:,:,:), allocatable :: u_norm
+
+         allocate( u_norm(1:n(1),1:n(2),1:local_N) )
+
+         u_norm(:,:,:) = 0.0_pr
+         do ii=1,3
+            u_norm(:,:,:) = u_norm(:,:,:) + u(:,:,:,ii)*u(:,:,:,ii)
+         end do
+         
+         if(toDealias) call dealias_scalar(u_norm,2.0_pr)
+
+         u_norm(:,:,:) = sqrt(abs(u_norm(:,:,:)))
+
+         where (u_norm(:,:,:) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
+            resultVec(:,:,:,1) = 0.0_pr
+            resultVec(:,:,:,2) = 0.0_pr
+            resultVec(:,:,:,3) = 0.0_pr
+         elsewhere
+            resultVec(:,:,:,1) = u(:,:,:,1)/u_norm(:,:,:)
+            resultVec(:,:,:,2) = u(:,:,:,2)/u_norm(:,:,:)
+            resultVec(:,:,:,3) = u(:,:,:,3)/u_norm(:,:,:)
+         end where
+
+         do a1=1,n(1)
+            do a2=1,n(2)
+               do a3=1,local_n
+                  if(isnan(resultVec(a1,a2,a3,1)) .or. isnan(resultVec(a1,a2,a3,2)) .or. isnan(resultVec(a1,a2,a3,3))) print*, "e_u is nan", u(a1,a2,a3,1), u(a1,a2,a3,2), u(a1,a2,a3,3), u_norm(a1,a2,a3)
+               end do
+            end do
+         end do
+      
+         !print*, "e_u", resultVec(:,:,:,:)
+         !stop 1
+
+         deallocate(u_norm)
+
+      end function calc_unitVectorInUdirection
+
+
+      !=========================================================
       ! Calculate nabla u : nabla u^T = partial_i u_j partial_j u_i -> nablaUnablaUt
       !=========================================================
       subroutine calc_nablaUnablaUt(u, nablaUnablaUt)
@@ -1268,6 +1324,63 @@ module function_ops
 
       end subroutine solve_poisson
          
+      !=========================================================
+      ! Calculate v cdot (v cdot nabla) u -> res
+      !=========================================================
+      function calc_vvgradu(u, v) result (res)
+         use global_variables
+         implicit none
+
+         real(pr) :: k
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u, v
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: res
+         real(pr), dimension(:,:,:), allocatable :: uComponent
+         real(pr), dimension(:,:,:,:), allocatable :: gradUComponent
+         real(pr), dimension(:,:,:,:), allocatable :: aux
+         real(pr), dimension(:,:,:,:,:), allocatable :: gradU         ! gradU(:,:,:,ii,jj) = partial_j u_i
+     
+         integer :: ii, jj
+
+         allocate( uComponent(1:n(1),1:n(2),1:local_N) )
+         allocate( gradUComponent(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( gradU(1:n(1),1:n(2),1:local_N,1:3,1:3) )
+
+         do ii=1,3
+            uComponent = u(:,:,:,ii)
+            call gradient(uComponent, gradUComponent)
+            do jj=1,3
+               gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
+               !uugradu(:,:,:) = uugradu(:,:,:) + u(:,:,:,ii)*u(:,:,:,jj)*gradUComponent(:,:,:,jj)
+            end do
+         end do
+
+         deallocate(uComponent)
+         deallocate(gradUComponent)
+         allocate( aux(1:n(1),1:n(2),1:local_N,1:3) )
+
+         aux = 0.0_pr
+         do jj=1,3
+            do ii=1,3
+               aux(:,:,:,jj) = aux(:,:,:,jj) + v(:,:,:,ii)*gradU(:,:,:,ii,jj)
+            end do
+         end do
+
+         do ii=1,3
+            if(toDealias) call dealias_scalar(aux(:,:,:,ii),2.0_pr)
+         end do
+         
+
+         res = 0.0_pr
+         do jj=1,3
+            res(:,:,:) = res(:,:,:) + v(:,:,:,jj)*aux(:,:,:,jj)
+         end do
+         if(toDealias) call dealias_scalar(res,2.0_pr)
+
+         deallocate( aux )
+
+
+      end function calc_vvgradu
+
 
       !=========================================================
       ! Calculate u cdot (u cdot nabla) u -> uugradu
@@ -1323,6 +1436,60 @@ module function_ops
 
 
       end subroutine calc_uugradu
+
+      !=========================================================
+      ! Calculate v_i partial_j u_i v_k partial_j u_k -> res
+      !=========================================================
+      function calc_vgraduvgradu(u, v) result (res)
+         use global_variables
+         implicit none
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u, v
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: res
+         real(pr), dimension(:,:,:,:,:), allocatable :: gradU         ! gradU(:,:,:,ii,jj) = partial_j u_i
+         real(pr), dimension(:,:,:), allocatable :: uComponent
+         real(pr), dimension(:,:,:,:), allocatable :: gradUComponent
+         real(pr), dimension(:,:,:,:), allocatable :: vGradu
+     
+         integer :: ii, jj, kk
+
+         allocate( uComponent(1:n(1),1:n(2),1:local_N) )
+         allocate( gradUComponent(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( gradU(1:n(1),1:n(2),1:local_n,1:3,1:3) )
+         allocate( vGradu(1:n(1),1:n(2),1:local_n,1:3) )
+
+         do ii=1,3
+            uComponent(:,:,:) = u(:,:,:,ii)
+            call gradient(uComponent,gradUComponent)
+            do jj=1,3
+               gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
+            end do
+         end do
+
+         vGradu = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               vGradu(:,:,:,jj) = vGradu(:,:,:,jj) + v(:,:,:,ii)*gradU(:,:,:,ii,jj)
+            end do
+         end do
+
+         do jj=1,3
+            if(toDealias) call dealias_scalar(vGradu(:,:,:,jj),2.0_pr)
+         end do
+
+         res = 0.0_pr
+         do jj=1,3
+            res(:,:,:) = res(:,:,:) + vGradu(:,:,:,jj)*vGradu(:,:,:,jj)
+         end do
+         if(toDealias) call dealias_scalar(res,2.0_pr)
+         
+
+         deallocate( uComponent )
+         deallocate( gradUComponent )
+         deallocate( gradU )
+         deallocate( vGradu )
+
+      end function calc_vgraduvgradu
 
       !=========================================================
       ! Calculate u_i partial_j u_i u_k partial_j u_k -> ugradu2

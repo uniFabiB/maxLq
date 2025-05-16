@@ -235,8 +235,10 @@ MODULE data_ops
                write(10, "(A20)") " "
                write(10, "(A20, G40.12)") "useOrthogonalGradient", useOrthogonalGradient
                write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
-               
                write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry
+               write(10, "(A20)") " "
+               write(10, "(A20, G40.12)") "normalizeDirection", normalizeDirection
+               write(10, "(A20, G40.12)") "use_e_u_instead_of_uqMinus4", use_e_u_instead_of_uqMinus4
                write(10, "(A20)") " "
                write(10, "(A20, G40.12)") "MAX_ITER", MAX_ITER
                write(10, "(A20, I40)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR

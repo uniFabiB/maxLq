@@ -10,18 +10,18 @@ MODULE global_variables
   !opt params!
   INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-3_pr            !original 1.0e-8_pr
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 64
-  real(pr), save :: lambda1 = 1.0_pr
+  integer, parameter :: resol = 256
+  real(pr), save :: lambda1 = 0.1_pr
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
   integer :: resetMomentumTermEveryXiterations = 25                 ! <1 = never
 
   logical :: normalizeDirection = .true.
-  logical :: use_e_u_instead_of_uqMinus4 = .false.
+  logical :: use_e_u_instead_of_uqMinus4 = .true.
 
   !data params!
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
@@ -43,7 +43,7 @@ MODULE global_variables
   LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
   integer :: save_scalarFieldsEveryXiteration = 10           ! <1 for never
   integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
-  integer :: save_spectraEveryXiteration = 1                 ! <1 for never
+  integer :: save_spectraEveryXiteration = 10                 ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.

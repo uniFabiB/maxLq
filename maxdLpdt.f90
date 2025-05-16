@@ -62,7 +62,7 @@
       bIterOffset = 0       ! should match the loaded iteration or 0 if new
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 5.0_pr
+      lebesgueQ = 3.0_pr
 
       
       IF (rank==0) print*, "start"
@@ -109,7 +109,7 @@
             if(constraintB>50.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
             B_list(B_list_iterator) = constraintB         
          end do
-      elseif(abs(lebesgueQ-3.0_pr)<MACH_EPSILON)
+      elseif(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
          B_list(1) = 1.0_pr
          do B_list_iterator=2,size(B_list)
             constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)

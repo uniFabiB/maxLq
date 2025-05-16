@@ -53,7 +53,8 @@ SUBROUTINE initialize
    END DO
 
 
-   IF (n(1)<256) THEN
+   !IF (n(1)<256) THEN     !todo temporarily changed on 16 may 2025 to avoid an error of u1 being not allocatable in save_field_R3toR3_ncdf : ALLOCATE( u1(1:n(1),1:n(2),1:n(3)) ) 
+   IF (n(1)<64) THEN
       parallel_data = .FALSE.
    ELSE
       parallel_data = .TRUE.

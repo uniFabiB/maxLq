@@ -58,6 +58,15 @@ module optimization
          call divAvg_free(uvec)
 
 
+         
+         !====================================
+         ! potential kappa test
+         !====================================
+         if(kappaTest) then
+            gradJ1 = GradL2ForLq(Uvec)
+            call kappa_test(uvec, gradJ1, .true., "maxdLqdt", "initial grad L2", "L2")  
+         end if
+
          !======================================================
          ! initialize loop variables
          !======================================================
@@ -276,8 +285,6 @@ module optimization
                vecTransported_GradJused0 = gradJused1
                vecTransported_d0 = d1
             end if
-
-
             if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)")  
 
             !======================================
@@ -888,7 +895,7 @@ module optimization
 
 
       J0 = eval_J(phi, mysystem)
-      allocate( kappaArray(kappaTestSize,5) )
+      allocate( kappaArray(1:kappaTestSize,1:5) )
 
       DO ii=1,kappaTestSize
          
@@ -896,6 +903,7 @@ module optimization
          myepsilon = 10.0_pr**myexp         
          
          phi_bar = phi + myepsilon*phi_pert
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
          J1 = eval_J(phi_bar, mysystem)
 
@@ -903,11 +911,12 @@ module optimization
 
          kappa = (J1-J0)/(myepsilon*innerProd)
 
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
          kappaArray(ii,:) = (/myepsilon, innerProd, deltaJ, kappa, kappa/)
 
          if (rank==0) print*, achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
-  
-         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
       END DO
 
 
@@ -918,10 +927,11 @@ module optimization
       iAdjMin = 0
       adjAvgSize = 4
       fracAdjMin = 9999
-      do ii=1,kappaTestSize-(adjAvgSize-1)
+      if(rank==0) print*, ""
+      do ii=1,kappaTestSize-(adjAvgSize-1)-1
          frac = 0.0_pr
          do jj=0,adjAvgSize-1
-            frac = frac + abs(1-abs(kappaArray(ii+jj,4)/kappaArray(ii+jj+1,4)))
+            frac = frac + abs(1-kappaArray(ii+jj,4)/kappaArray(ii+jj+1,4))
          end do
          if(frac<fracAdjMin) then
             fracAdjMin = frac

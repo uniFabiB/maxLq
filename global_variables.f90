@@ -10,17 +10,18 @@ MODULE global_variables
   !opt params!
   INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
   INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
-  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-4_pr            !original 1.0e-8_pr
+  REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-3_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 128
-  real(pr), save :: lambda1 = 0.1_pr
+  integer, parameter :: resol = 64
+  real(pr), save :: lambda1 = 1.0_pr
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
   integer :: resetMomentumTermEveryXiterations = 25                 ! <1 = never
 
   logical :: normalizeDirection = .true.
+  logical :: use_e_u_instead_of_uqMinus4 = .false.
 
   !data params!
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
@@ -39,7 +40,7 @@ MODULE global_variables
 
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
-  LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
+  LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
   integer :: save_scalarFieldsEveryXiteration = 10           ! <1 for never
   integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
   integer :: save_spectraEveryXiteration = 1                 ! <1 for never

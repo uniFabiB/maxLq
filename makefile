@@ -7,7 +7,8 @@ OBJ = global_variables.o initialize.o data_ops.o fftwfunction.o function_ops.o o
 BASIC_LIB  = -lm -lmpi
 
 #DEB_OPTS = 
-DEB_OPTS = -g -O0
+#DEB_OPTS = -g -O0
+DEB_OPTS = -g -O0 -fcheck=all -fbacktrace
 #DEB_OPTS = -g -O0 -fcheck=all -Wall -fbacktrace
 # -g enable debugging
 # -O0 optimization off (for faster debugging)

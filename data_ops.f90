@@ -558,7 +558,7 @@ MODULE data_ops
          ALLOCATE(local_f(1:n(1),1:n(2),1:local_N))
 
          if (.not. parallel_data) then
-            !if(rank==0) print*, "slight warning: save field R3 -> Rn not implemented for non parallel dataops, using parallel dataops (might be inefficient)"
+            if(rank==0) print*, "slight warning: save field R3 -> Rn not implemented for non parallel dataops, using parallel dataops (might be inefficient)"
          end if
          IF (rank==0) THEN
             ncout = nf90_create(file_name, NF90_CLOBBER, ncid=ncid)

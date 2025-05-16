@@ -56,7 +56,7 @@
       iguess = 50
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_B32_0512.nc"
+         loadTempFunctionName = ".nc"
       end if
 
       bIterOffset = 0       ! should match the loaded iteration or 0 if new

@@ -62,7 +62,7 @@
       bIterOffset = 0       ! should match the loaded iteration or 0 if new
 
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 3.0_pr
+      lebesgueQ = 4.0_pr
 
       
       IF (rank==0) print*, "start"

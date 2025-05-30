@@ -13,7 +13,7 @@ MODULE global_variables
   REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 256
+  integer, parameter :: resol = 64
   real(pr), save :: lambda1 = 0.1_pr
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.

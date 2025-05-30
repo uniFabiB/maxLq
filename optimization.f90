@@ -15,7 +15,7 @@ module optimization
          REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: uvec0, gradJ0, gradJ1, gradJproj, gradJused0, gradJused1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJused0, vecTransported_d0, normalL2, normalHs
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, orderS
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, orderS, gradJ0norm
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
@@ -77,6 +77,7 @@ module optimization
          iter = 0
          write(optimizationIterationTxt, '(i3.3)') iter
          d0 = 0.0_pr
+         gradJused0 = 0.0_pr
          vecTransported_GradJused0 = 0.0_pr
          vecTransported_d0 = 0.0_pr
          tau0Init = 10.0_pr**(2.0_pr)
@@ -183,7 +184,13 @@ module optimization
                ! Calculate Momentum Term (Polak-Ribière)
                !======================================================
                beta = global_summed_field_inner_product(gradJused1,gradJused1-vecTransported_d0,"H_l^(3/2-1/q)")       !!! d0 or usedgraj0??? (8.29) in absil et al
-               beta = beta/global_summed_field_inner_product(gradJused1,gradJused1,"H_l^(3/2-1/q)")
+               gradJ0norm = global_summed_field_inner_product(gradJused0,gradJused0,"H_l^(3/2-1/q)")
+               !if(rank==0 .and. verboseOptimization) print*, "gradJ0norm", gradJ0norm
+               if(gradJ0norm<MACH_EPSILON) then
+                  beta = 0.0_pr
+               else
+                  beta = beta/gradJ0norm
+               end if
 
                if(modulo(iter,resetMomentumTermEveryXiterations) == 0) then
                   if(rank==0) print*, achar(9), "RESETTING MOMENTUM TERM"
@@ -202,14 +209,17 @@ module optimization
             !======================================================
             
             if(normalizeDirection) then
+               if(rank==0 .and. verboseOptimization) print*, "normalize direction"
                d1(:,:,:,:) =  sqrt(global_summed_field_inner_product(uvec,uvec,"H_l^(3/2-1/q)")/global_summed_field_inner_product(d1,d1,"H_l^(3/2-1/q)")) * d1(:,:,:,:)
             end if
 
+            if(rank==0 .and. verboseOptimization) print*, "check average zero d1"
             testVec = calc0thFourierModes(d1)
             if(sum(abs(testVec(:)))>checkAverageTolerance*constraintB) then
                if(rank==0) print*, "WARNING", achar(9), achar(9), checkAverageTolerance*constraintB,"< abs(average(gradJproj)) =", testVec(1), testVec(2), testVec(3)
                call optim_msg_handle(44)
             end if
+            if(rank==0 .and. verboseOptimization) print*, "check average zero uvec"
             testVec = calc0thFourierModes(uvec)
             if(sum(abs(testVec(:)))>checkAverageTolerance*constraintB) then
                if(rank==0) print*, "WARNING", achar(9), achar(9), checkAverageTolerance*constraintB,"< abs(average(gradJproj)) =", testVec(1), testVec(2), testVec(3)
@@ -358,6 +368,7 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "update old variables"
             J0 = J1
             gradJ0 = gradJ1
+            gradJused0 = gradJused1
             tau0 = tau1
             d0 = d1
 

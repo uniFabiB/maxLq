@@ -65,6 +65,8 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
             complex(pr), dimension (1:n(1),1:n(2),1:local_N), intent(in) :: u
             complex(pr), dimension (1:n(1),1:n(2),1:local_N), intent(out) :: fu
 
+            integer :: a1, a2, a3
+
             tmppointer(:,:,:) = u(:,:,:)
 
             call fftw_mpi_execute_dft(fwdplan, tmppointer, tmppointer)
@@ -73,8 +75,17 @@ MODULE fftwfunction   ! Newly added on March 20, 2017
 
 
 
-            if ((isnan(real(fu(1,1,1)))) .and. (rank==0)) then
-                  print*, "nan in fftwfunction"
+            if(.true.) then
+                  do a1=1,n(1)
+                        do a2=1,n(2)
+                              do a3=1,local_n
+                                    if (isnan(real(fu(a1,a2,a3)))) then
+                                          print*, "nan in fftwfunction"
+                                          stop 1
+                                    end if
+                              end do
+                        end do
+                  end do
             end if
 
             call mpi_barrier(mpi_comm_world, statinfo)

@@ -1230,6 +1230,25 @@ module function_ops
 
          u_norm(:,:,:) = sqrt(abs(u_norm(:,:,:)))
 
+
+
+         !do a1=1,n(1)
+         !   do a2=1,n(2)
+         !      do a3=1,local_n
+         !         if(u_norm(a1,a2,a3) < mach_epsilon) then      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
+         !            resultVec(a1,a2,a3,1) = 0.0_pr
+         !            resultVec(a1,a2,a3,2) = 0.0_pr
+         !            resultVec(a1,a2,a3,3) = 0.0_pr
+         !         else
+         !            resultVec(a1,a2,a3,1) = u(a1,a2,a3,1)/u_norm(a1,a2,a3)
+         !            resultVec(a1,a2,a3,2) = u(a1,a2,a3,2)/u_norm(a1,a2,a3)
+         !            resultVec(a1,a2,a3,3) = u(a1,a2,a3,3)/u_norm(a1,a2,a3)
+         !         end if
+         !      end do
+         !   end do
+         !end do
+                     
+
          where (u_norm(:,:,:) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
             resultVec(:,:,:,1) = 0.0_pr
             resultVec(:,:,:,2) = 0.0_pr
@@ -1243,7 +1262,10 @@ module function_ops
          do a1=1,n(1)
             do a2=1,n(2)
                do a3=1,local_n
-                  if(isnan(resultVec(a1,a2,a3,1)) .or. isnan(resultVec(a1,a2,a3,2)) .or. isnan(resultVec(a1,a2,a3,3))) print*, "e_u is nan", u(a1,a2,a3,1), u(a1,a2,a3,2), u(a1,a2,a3,3), u_norm(a1,a2,a3)
+                  if(isnan(resultVec(a1,a2,a3,1)) .or. isnan(resultVec(a1,a2,a3,2)) .or. isnan(resultVec(a1,a2,a3,3))) then
+                     print*, "unitvector is nan", u(a1,a2,a3,1), u(a1,a2,a3,2), u(a1,a2,a3,3), u_norm(a1,a2,a3)
+                     stop 1
+                  end if
                end do
             end do
          end do

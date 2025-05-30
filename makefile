@@ -29,5 +29,5 @@ $(progName): $(OBJ)
 	$(compiler) -c $(OPTIONS) $(NETCDF_DIR) $(FFTW_DIR) $<
 
 clean: 
-	rm -f *.o *.mod *.nc *.dat $(progName)
+	rm -f *.o *.mod *.nc *.dat core.* $(progName)
 	rm -f -r output/*.dat output/*.log output/*.nc output/constraintDirs

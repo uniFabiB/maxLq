@@ -30,4 +30,4 @@ $(progName): $(OBJ)
 
 clean: 
 	rm -f *.o *.mod *.nc *.dat core.* $(progName)
-	rm -f -r output/*.dat output/*.log output/*.nc output/constraintDirs
+	rm -f -r output/*

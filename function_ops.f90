@@ -72,7 +72,6 @@ module function_ops
 
 
             case (2)
-               !call kappa_test_pert(uvec, "save-random-field", 0.0_pr, 0.0_pr, 0.0_pr)
                call kappa_test_pert(uvec, "load-random-a", 0.0_pr, 0.0_pr, 0.0_pr)
 
             case (3)
@@ -86,6 +85,9 @@ module function_ops
 
             case (6)
                call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
+
+            case (7)
+               call kappa_test_pert(uvec, "save-random", 0.0_pr, 0.0_pr, 0.0_pr)
 
             CASE (9)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
@@ -331,18 +333,278 @@ module function_ops
 
            END SELECT
 
-
-            IF (save_data_Optim) then
-               filename = HomeDir//"u0.nc"                           ! Newly added on May 8, 2017
-               CALL save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
-            END IF
-
                         ! Deallocate variables
            DEALLOCATE( Ux )
            DEALLOCATE( Uy )
            DEALLOCATE( Uz )
 
       END SUBROUTINE initial_guess
+
+      subroutine save_fourier_transform_of_uvec()
+         USE global_variables
+         USE fftwfunction
+         use data_ops
+         use mpi
+         IMPLICIT NONE
+
+         character(len=200) :: filename_real, filename_imag
+
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
+         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: uvec_fourier_real, uvec_fourier_imag
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: fx, fy, fz
+
+
+
+         filename_real = inputDir//"uvec_fourier_realPart_new.nc"
+         filename_imag = inputDir//"uvec_fourier_imagPart_new.nc"
+
+         if(rank==0) print*, "starting save fourier"
+
+         aux = dcmplx(uvec, 0.0_pr)		
+         CALL fftfwdv(aux, faux)
+
+         uvec_fourier_real = real(faux)
+         uvec_fourier_imag = aimag(faux)
+
+         if(rank==0) print*, "rank0", uvec_fourier_real(1,1,1,1), uvec_fourier_real(2,2,2,2), uvec_fourier_imag(1,1,1,1), uvec_fourier_imag(2,2,2,2)
+         if(rank==1) print*, "rank1", uvec_fourier_real(1,1,1,1), uvec_fourier_real(2,2,2,2), uvec_fourier_imag(1,1,1,1), uvec_fourier_imag(2,2,2,2)
+
+         fx = uvec_fourier_real(:,:,:,1)
+         fy = uvec_fourier_real(:,:,:,2)
+         fz = uvec_fourier_real(:,:,:,3)
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         CALL save_field_R3toR3_ncdf(fx,fy,fz,"FU_r_x", "FU_r_y", "FU_r_z", trim(adjustl(filename_real)), "netCDF")
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         
+         fx = uvec_fourier_imag(:,:,:,1)
+         fy = uvec_fourier_imag(:,:,:,2)
+         fz = uvec_fourier_imag(:,:,:,3)
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         CALL save_field_R3toR3_ncdf(fx,fy,fz,"FU_i_x", "FU_i_y", "FU_i_z", trim(adjustl(filename_imag)), "netCDF")
+         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+         if(rank==0) print*, "exiting program"
+         if(rank==0) print*, "to refine restart with according function call"
+         call exit
+         if(rank==0) print*, "ending save fourier"
+         
+      end subroutine save_fourier_transform_of_uvec
+
+
+      subroutine load_fourier_transform_of_uvec_refining(resol_pre)
+         USE global_variables
+         use netCDF
+         USE fftwfunction
+         use data_ops
+         use mpi
+         IMPLICIT NONE
+
+
+         integer, intent(in) :: resol_pre
+
+         character(len=200) :: filename_real, filename_imag
+
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: aux, faux
+         real(pr), dimension(:,:,:,:), allocatable :: uvec_fourier_real, uvec_fourier_imag
+         real(pr), dimension(:,:,:), allocatable :: local_f
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: fx, fy, fz
+
+         real(pr) :: adjustment_factor
+
+         integer, dimension(1:3) :: n_pre
+         integer(c_intptr_t), dimension(1:3) :: C_n_pre
+
+         integer :: ii, jj, kk, ll, mm, nn
+         INTEGER :: ncout, ncid, fid, dimids(3)
+         INTEGER :: x_dimid, y_dimid, z_dimid
+         INTEGER :: fname_len, nx_ncdf, ny_ncdf, nz_ncdf
+         INTEGER, DIMENSION(1:3) :: starts, counts
+
+         integer(c_intptr_t) :: C_local_alloc_pre, C_local_N_pre, C_local_k_offset_pre       ! Newly Added Jan 17; Modified on March 18, 2017
+         integer :: local_alloc_pre, local_N_pre, local_k_offset_pre                         ! Newly Added March 18, 2017
+
+         filename_real = inputDir//"uvec_fourier_realPart_n64.nc"
+         filename_imag = inputDir//"uvec_fourier_imagPart_n64.nc"
+
+         if(rank==0) print*, "starting load fourier"
+
+         ! !if(resol_pre <= 0 .or. resol_pre==resol) then
+         ! !   allocate( uvec_fourier_real(1:n(1),1:n(2),1:local_N,1:3) )
+         ! !   allocate( uvec_fourier_imag(1:n(1),1:n(2),1:local_N,1:3) )
+         ! !   CALL read_field_R3toR3_ncdf(uvec_fourier_real, filename_real, "FU_r_x", "FU_r_y", "FU_r_z")
+         ! !   CALL read_field_R3toR3_ncdf(uvec_fourier_imag, filename_imag, "FU_i_x", "FU_i_y", "FU_i_z")
+         ! !else
+         ! if(.true.) then
+         !    ! refine from resol_pre
+         !    n_pre(1) = resol_pre
+         !    n_pre(2) = resol_pre
+         !    n_pre(3) = resol_pre
+         !    C_n_pre(1) = resol_pre
+         !    C_n_pre(2) = resol_pre
+         !    C_n_pre(3) = resol_pre
+
+            
+         !    C_local_alloc_pre = fftw_mpi_local_size_3d(C_n_pre(3), C_n_pre(2), C_n_pre(1), MPI_COMM_WORLD, C_local_N_pre, C_local_k_offset_pre)   ! Newly Added March 18, 2017, use "C_..."
+         !    local_N_pre = int( C_local_N_pre )
+         !    local_k_offset_pre = int( C_local_k_offset_pre )
+            
+         !    print*, "rank", rank, "n_pre(:)", n_pre(:), "local_n_pre", local_n_pre
+
+         !    starts = (/ 1, 1, rank*local_N_pre+1 /)
+         !    counts = (/ n_pre(1), n_pre(2), local_N_pre /)
+
+            
+         !    allocate( uvec_fourier_real(1:n(1),1:n(2),1:local_N,1:3) )
+         !    allocate( uvec_fourier_imag(1:n(1),1:n(2),1:local_N,1:3) )
+         !    allocate( local_f(1:n_pre(1),1:n_pre(2),1:local_N_pre) )
+
+         !    uvec_fourier_real = 0.0_pr
+         !    uvec_fourier_imag = 0.0_pr
+
+         !    !--------------------------
+         !    ! START netCDF ROUTINES
+         !    !--------------------------
+         !    DO ii=0,np-1
+         !       IF (rank == ii) THEN 
+         !          ncout = nf90_open(filename_real, NF90_NOWRITE, ncid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inq_dimid(ncid, "x", x_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inq_dimid(ncid, "y", y_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inq_dimid(ncid, "z", z_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inquire_dimension(ncid, x_dimid, len = nx_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inquire_dimension(ncid, y_dimid, len = ny_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inquire_dimension(ncid, z_dimid, len = nz_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inq_varid(ncid, "FU_r_x", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          do mm=0,local_N_pre/2
+         !             do kk=0,n_pre(2)/2
+
+         !                do kk = 0, n_pre(2)-1
+         !                   if (kk<=n_pre(2)/2) then
+         !                   else
+         !                   end if
+         !                end do 
+         !                do jj = 0, n_pre(1)-1
+         !                   if (jj<=n_pre(1)/2) then
+         !                   else
+         !                   end if
+         !                end do 
+         !                DO i = 0, n(1)-1
+         !                   IF (i<=n(1)/2) THEN
+         !                      K1(i+1) = 2.0_pr*PI*REAL(i,pr)
+         !                   ELSE
+         !                      K1(i+1) = 2.0_pr*PI*REAL(i-n(1),pr)
+         !                   END IF
+         !                end do
+         !                do jj=0,n_pre(1)/2
+         !                   uvec_fourier_real(jj,kk,mm,1) = local_f(jj,kk,mm,1)
+         !                   uvec_fourier_real(n(1)-jj,kk,mm,1) = local_f(n_pre(1)-jj,kk,mm,1)
+         !                   uvec_fourier_real(jj,n(2)-kk,mm,1) = local_f(jj,n_pre(2)-kk,mm,1)
+         !                   uvec_fourier_real(n(1)-jj,n(2)-kk,mm,1) = local_f(n_pre(1)-jj,n_pre(2)-kk,mm,1)
+         !                end do
+         !             end do
+         !          end do
+
+
+
+         !          ncout = nf90_inq_varid(ncid, "FU_r_y", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          uvec_fourier_real(1:n_pre(1),1:n_pre(2),1:local_N_pre,2) = local_f
+
+         !          ncout = nf90_inq_varid(ncid, "FU_r_z", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          uvec_fourier_real(1:n_pre(1),1:n_pre(2),1:local_N_pre,3) = local_f
+
+         !          ncout = nf90_close(ncid)
+
+         !       END IF
+         !       CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         !    END DO     
+         !    CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+
+
+         !    !--------------------------
+         !    ! START netCDF ROUTINES
+         !    !--------------------------
+         !    DO ii=0,np-1
+         !       IF (rank == ii) THEN 
+         !          ncout = nf90_open(filename_imag, NF90_NOWRITE, ncid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inq_dimid(ncid, "x", x_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inq_dimid(ncid, "y", y_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inq_dimid(ncid, "z", z_dimid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inquire_dimension(ncid, x_dimid, len = nx_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inquire_dimension(ncid, y_dimid, len = ny_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_inquire_dimension(ncid, z_dimid, len = nz_ncdf)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+
+         !          ncout = nf90_inq_varid(ncid, "FU_i_x", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          uvec_fourier_imag(1:n_pre(1),1:n_pre(2),1:local_N_pre,1) = local_f
+
+         !          ncout = nf90_inq_varid(ncid, "FU_i_y", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          uvec_fourier_imag(1:n_pre(1),1:n_pre(2),1:local_N_pre,2) = local_f
+
+         !          ncout = nf90_inq_varid(ncid, "FU_i_z", fid)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
+         !          IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+         !          uvec_fourier_imag(1:n_pre(1),1:n_pre(2),1:local_N_pre,3) = local_f
+
+         !          ncout = nf90_close(ncid)
+
+         !       END IF
+         !       CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         !    END DO     
+         !    CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+         !    DEALLOCATE(local_f)
+
+         ! end if
+
+
+
+         ! faux = dcmplx(uvec_fourier_real, uvec_fourier_imag)
+         ! call fftbwdv(faux, aux)
+         ! uvec = real(aux)
+
+         ! adjustment_factor = real(resol,pr)/real(resol_pre,pr)
+         ! uvec(:,:,:,:) = adjustment_factor*uvec(:,:,:,:)
+
+         if(rank==0) print*, "ending load fourier"
+         
+      end subroutine load_fourier_transform_of_uvec_refining
+
+
 
 
       !===================================
@@ -628,6 +890,12 @@ module function_ops
                CALL save_field_R3toR3_ncdf(phi_pert(:,:,:,1), phi_pert(:,:,:,2), phi_pert(:,:,:,3), "Ux", "Uy", "Uz", filename, "netCDF")
 
 
+               CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+
+               if(rank==0) print*, "finished saving random field, exiting"
+               call exit
+
+
          END SELECT
    
       END SUBROUTINE kappa_test_pert
@@ -772,19 +1040,19 @@ module function_ops
          
 
          aux2 = 0.0_pr
-         e_u = calc_unitVectorInUdirection(u)
          if(use_e_u_instead_of_uqMinus4) then
+            e_u = calc_unitVectorInUdirection(u)
             do ii = 1,3
                aux2(:,:,:) = aux2(:,:,:) + e_u(:,:,:,ii)*(viscCoefficient*visc*aux_DeltaU(:,:,:,ii)-pressureCoefficient*aux_gradP(:,:,:,ii)) ! aux2 = e_u cdot (nu Delta u - nabla p)
             end do
-            if (toDealias) call dealias_scalar(aux2, 2.0_pr)
+            if (toDealias .and. dealiase_if_mult_by_e_u) call dealias_scalar(aux2, 2.0_pr)
 
             aux2(:,:,:) = aux_u_q2(:,:,:) * aux2(:,:,:)                 ! aux2 = |u|^{q-2} (e_u cdot (nu Delta u - nabla p))
             if (toDealias) call dealias_scalar(aux2, 2.0_pr)
 
             do ii = 1,3
                aux3_vec(:,:,:,ii) = aux2(:,:,:) * e_u(:,:,:,ii)         ! aux3_vec = |u|^{q-2} (e_u cdot (nu Delta u - nabla p)) e_u
-               if (toDealias) call dealias_scalar(aux3_vec(:,:,:,ii), 2.0_pr)
+               if (toDealias .and. dealiase_if_mult_by_e_u) call dealias_scalar(aux3_vec(:,:,:,ii), 2.0_pr)
             end do
          else
             do ii = 1,3
@@ -900,14 +1168,16 @@ module function_ops
 
 
 
+         e_u = calc_unitVectorInUdirection(u)
          if(use_e_u_instead_of_uqMinus4) then
-            e_u = calc_unitVectorInUdirection(u)
+            ! this is the one that somehow makes using e_u much worse !
+            ! all other occurances are not that impactful !
             aux = calc_vgraduvgradu(u, e_u)                  ! aux = (e_u)_i partial_j u_i (e_u)_k partial_j u_k
             R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q2, aux, "L2")
             !R_2 = - (q-2) nu int |u|^(q-2) (e_u)_i partial_j u_i (e_u)_k partial_j u_k
          else
             call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
-            call calc_ugraduugradu(u, aux)
+            aux = calc_vgraduvgradu(u, u)                     ! aux = u_i partial_j u_i u_k partial_j u_k
             R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q4, aux, "L2")
             !R_2 = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k
          end if
@@ -926,7 +1196,7 @@ module function_ops
          else
             aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
             if (toDealias) call dealias_scalar(aux, 2.0_pr)
-            call calc_uugradu(u, aux_uugradu)               ! aux_uugradu = u cdot (u cdot nabla) u
+            aux_uugradu = calc_vvgradu(u,u)                 ! aux_uugradu = u cdot (u cdot nabla) u
             R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
             !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
          end if
@@ -1123,6 +1393,52 @@ module function_ops
       END SUBROUTINE testFFT
 
 
+
+      !=========================================================
+      ! Calculate W^{1,s} norm
+      ! result = (int (|u|^s+|nabla u|^s)^(1/s)
+      !                 where |u|^s and |nabla u|^s is calculated using dealiasing
+      !                 |nabla u| = (sum_ij |partial_i u_j|^2)^(1/2)
+      !=========================================================
+      function calc_global_W1s_norm(u,s) result (norm)
+         use global_variables
+         implicit none
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3) :: gradu                 ! gradu(:,:,:,ii,jj) = partial_j u_i
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: usHalf, nablausHalf
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: aux
+         real(pr), intent(in) :: s
+         real(pr) :: norm1, norm
+         integer :: ii
+
+
+         do ii=1,3
+            call gradient(u(:,:,:,ii), aux)
+            gradu(:,:,:,ii,:) = aux(:,:,:,:)
+         end do
+
+         ! usHalf = |u|^(s/2)
+         call calc_uk(u,s/2.0_pr,usHalf)
+
+         ! nablausHalf = |nabla u|^(s/2)
+         call calc_nablauk(gradu, s/2.0_pr, nablausHalf)
+
+
+         ! norm1 = int |u|^s
+         norm1 = global_inner_product(usHalf,usHalf,"L2")
+
+         ! norm = int |nabla u|^s
+         norm = global_inner_product(nablausHalf, nablausHalf,"L2")
+
+         ! norm = int (|u|^s + |nabla u|^s)
+         norm = norm1+norm
+
+         ! norm = (int (|u|^s + |nabla u|^s))^(1/s)
+         norm = norm**(1.0_pr/s)
+         
+      end function
+
       !=========================================================
       ! Calculate L^q norm
       ! result = (int |u|^q)^(1/q) where |u|^q is calculated using dealiasing
@@ -1207,6 +1523,54 @@ module function_ops
       end function vectorTransport
 
 
+
+      !=========================================================
+      ! Calculate |u|(x) = sqrt(sum_i u_i^2)(x)
+      !=========================================================
+      function calc_pointwiseVectorNorm(u) result (norm)
+         use global_variables
+         implicit none
+
+         integer :: ii
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: norm
+
+         norm(:,:,:) = 0.0_pr
+         do ii=1,3
+            norm(:,:,:) = norm(:,:,:) + u(:,:,:,ii)*u(:,:,:,ii)
+         end do
+         
+         if(toDealias) call dealias_scalar(norm,2.0_pr)
+
+         norm(:,:,:) = sqrt(abs(norm(:,:,:)))
+      end function
+
+
+
+      !=========================================================
+      ! Calculate |M|(x) = sqrt(sum_ij M_ij^2)(x)
+      !=========================================================
+      function calc_pointwiseFrobeniusNorm(M) result (norm)
+         use global_variables
+         implicit none
+
+         integer :: ii, jj
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3), intent(in) :: M
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: norm
+
+         norm(:,:,:) = 0.0_pr
+         do jj=1,3
+            do ii=1,3
+               norm(:,:,:) = norm(:,:,:) + M(:,:,:,ii,jj)*M(:,:,:,ii,jj)
+            end do
+         end do
+         
+         if(toDealias) call dealias_scalar(norm,2.0_pr)
+
+         norm(:,:,:) = sqrt(abs(norm(:,:,:)))
+
+      end function
+
       !=========================================================
       ! Calculate e_u = u/|u|, where |u| is the euklidean norm -> resultVec
       !=========================================================
@@ -1221,61 +1585,80 @@ module function_ops
 
          allocate( u_norm(1:n(1),1:n(2),1:local_N) )
 
-         u_norm(:,:,:) = 0.0_pr
+         u_norm = calc_pointwiseVectorNorm(u)      
+
          do ii=1,3
-            u_norm(:,:,:) = u_norm(:,:,:) + u(:,:,:,ii)*u(:,:,:,ii)
+            where (u_norm(:,:,:) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
+               resultVec(:,:,:,ii) = 0.0_pr
+            elsewhere
+               resultVec(:,:,:,ii) = u(:,:,:,ii)/u_norm(:,:,:)
+            end where
          end do
-         
-         if(toDealias) call dealias_scalar(u_norm,2.0_pr)
 
-         u_norm(:,:,:) = sqrt(abs(u_norm(:,:,:)))
-
-
-
-         !do a1=1,n(1)
-         !   do a2=1,n(2)
-         !      do a3=1,local_n
-         !         if(u_norm(a1,a2,a3) < mach_epsilon) then      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
-         !            resultVec(a1,a2,a3,1) = 0.0_pr
-         !            resultVec(a1,a2,a3,2) = 0.0_pr
-         !            resultVec(a1,a2,a3,3) = 0.0_pr
-         !         else
-         !            resultVec(a1,a2,a3,1) = u(a1,a2,a3,1)/u_norm(a1,a2,a3)
-         !            resultVec(a1,a2,a3,2) = u(a1,a2,a3,2)/u_norm(a1,a2,a3)
-         !            resultVec(a1,a2,a3,3) = u(a1,a2,a3,3)/u_norm(a1,a2,a3)
-         !         end if
-         !      end do
-         !   end do
-         !end do
-                     
-
-         where (u_norm(:,:,:) < mach_epsilon)      ! uk can be negative because of rounding errors or 1/0 -> results in NaN values
-            resultVec(:,:,:,1) = 0.0_pr
-            resultVec(:,:,:,2) = 0.0_pr
-            resultVec(:,:,:,3) = 0.0_pr
-         elsewhere
-            resultVec(:,:,:,1) = u(:,:,:,1)/u_norm(:,:,:)
-            resultVec(:,:,:,2) = u(:,:,:,2)/u_norm(:,:,:)
-            resultVec(:,:,:,3) = u(:,:,:,3)/u_norm(:,:,:)
-         end where
-
-         do a1=1,n(1)
-            do a2=1,n(2)
-               do a3=1,local_n
-                  if(isnan(resultVec(a1,a2,a3,1)) .or. isnan(resultVec(a1,a2,a3,2)) .or. isnan(resultVec(a1,a2,a3,3))) then
-                     print*, "unitvector is nan", u(a1,a2,a3,1), u(a1,a2,a3,2), u(a1,a2,a3,3), u_norm(a1,a2,a3)
-                     stop 1
-                  end if
+         do ii=1,3
+            do a3=1,local_n
+               do a2=1,n(2)
+                  do a1=1,n(1)
+                     if(isnan(resultVec(a1,a2,a3,ii))) then
+                        print*, "unitvector is nan", ii, u(a1,a2,a3,:), u_norm(a1,a2,a3)
+                        stop 1
+                     end if
+                  end do
                end do
             end do
          end do
-      
-         !print*, "e_u", resultVec(:,:,:,:)
-         !stop 1
 
          deallocate(u_norm)
 
       end function calc_unitVectorInUdirection
+
+
+
+      !=========================================================
+      ! Calculate e_M = M/|M|, i.e. {e_M}_ij = M_ij/|M|, where |M| is the Frobenius norm (=L^2 matrix norm) -> resultMat
+      !=========================================================
+      function calc_unitMatrixInMdirection(M) result (resultMatrix)
+         use global_variables
+         implicit none
+
+         integer :: ii, jj, a1, a2, a3
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3), intent(in) :: M
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3) :: resultMatrix
+         real(pr), dimension(:,:,:), allocatable :: matrix_norm
+
+         allocate( matrix_norm(1:n(1),1:n(2),1:local_N) )
+
+         matrix_norm = calc_pointwiseFrobeniusNorm(M)
+
+         do jj=1,3
+            do ii=1,3
+               where (matrix_norm(:,:,:) < mach_epsilon)
+                  resultMatrix(:,:,:,ii,jj) = 0.0_pr
+               elsewhere
+                  resultMatrix(:,:,:,ii,jj) = M(:,:,:,ii,jj)/matrix_norm(:,:,:)
+               end where
+            end do
+         end do
+            
+         do jj=1,3
+            do ii=1,3
+               do a3=1,local_n
+                  do a2=1,n(2)
+                     do a1=1,n(1)
+                        if(isnan(resultMatrix(a1,a2,a3,ii,jj))) then
+                           print*, "resultMatrix is nan", ii, jj, M(a1,a2,a3,:,:), ", matrix_norm", matrix_norm(a1,a2,a3)
+                           stop 1
+                        end if
+                     end do
+                  end do
+               end do
+            end do
+         end do
+
+         deallocate(matrix_norm)
+
+      end function calc_unitMatrixInMdirection
+
 
 
       !=========================================================
@@ -1409,7 +1792,13 @@ module function_ops
          end do
 
          do ii=1,3
-            if(toDealias) call dealias_scalar(aux(:,:,:,ii),2.0_pr)
+            if(toDealias) then
+               if(.not. use_e_u_instead_of_uqMinus4) then
+                  call dealias_scalar(aux(:,:,:,ii),2.0_pr)
+               else
+                  if(dealiase_if_mult_by_e_u) call dealias_scalar(aux(:,:,:,ii),2.0_pr)
+               end if
+            end if
          end do
          
 
@@ -1417,7 +1806,13 @@ module function_ops
          do jj=1,3
             res(:,:,:) = res(:,:,:) + v(:,:,:,jj)*aux(:,:,:,jj)
          end do
-         if(toDealias) call dealias_scalar(res,2.0_pr)
+         if(toDealias) then
+            if(.not. use_e_u_instead_of_uqMinus4) then
+               call dealias_scalar(res(:,:,:),2.0_pr)
+            else
+               if(dealiase_if_mult_by_e_u) call dealias_scalar(res(:,:,:),2.0_pr)
+            end if
+         end if
 
          deallocate( aux )
 
@@ -1504,20 +1899,24 @@ module function_ops
          do ii=1,3
             uComponent(:,:,:) = u(:,:,:,ii)
             call gradient(uComponent,gradUComponent)
-            do jj=1,3
-               gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
-            end do
+            gradU(:,:,:,ii,:) = gradUComponent(:,:,:,:)         ! gradU(:,:,:,ii,jj) = partial_j u_i
          end do
 
          vGradu = 0.0_pr
-         do ii=1,3
-            do jj=1,3
+         do jj=1,3
+            do ii=1,3
                vGradu(:,:,:,jj) = vGradu(:,:,:,jj) + v(:,:,:,ii)*gradU(:,:,:,ii,jj)
             end do
          end do
 
          do jj=1,3
-            if(toDealias) call dealias_scalar(vGradu(:,:,:,jj),2.0_pr)
+            if(toDealias) then
+               if(.not. use_e_u_instead_of_uqMinus4) then
+                  call dealias_scalar(vGradu(:,:,:,jj),2.0_pr)
+               else
+                  if(dealiase_if_mult_by_e_u) call dealias_scalar(vGradu(:,:,:,jj),2.0_pr)
+               end if
+            end if
          end do
 
          res = 0.0_pr
@@ -1634,6 +2033,7 @@ module function_ops
          end if
          
       end function calc_gk_order2
+
       !=========================================================
       ! Calculate |u|^k -> uk
       !=========================================================
@@ -1645,10 +2045,10 @@ module function_ops
          real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
          real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: uk         
          
-         uk(:,:,:) = u(:,:,:,1)**2+u(:,:,:,2)**2+u(:,:,:,3)**2
+         uk(:,:,:) = u(:,:,:,1)**2.0_pr+u(:,:,:,2)**2.0_pr+u(:,:,:,3)**2.0_pr
          if(toDealias) call dealias_scalar(uk, 2.0_pr)
 
-         where (uk <= 0)      ! uk can be negative because of rounding errors -> results in NaN values
+         where (uk <= 0.0_pr)      ! uk can be negative because of rounding errors -> results in NaN values
             uk = 0.0_pr
          elsewhere
             uk = uk**(0.5_pr)
@@ -1657,6 +2057,23 @@ module function_ops
          uk = calc_gk_order2(uk, k)
 
       end subroutine calc_uk
+
+      
+      !=========================================================
+      ! Calculate |nabla u|^k -> nablauk
+      !=========================================================
+      subroutine calc_nablauk(nablau, k, nablauk)
+         use global_variables
+         implicit none
+
+         real(pr), intent(in) :: k
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3,1:3), intent(in) :: nablau
+         real(pr), dimension(1:n(1),1:n(2),1:local_n), INTENT(OUT) :: nablauk         
+         
+         nablauk = calc_pointwiseFrobeniusNorm(nablau)
+         nablauk = calc_gk_order2(nablauk, k)
+
+      end subroutine calc_nablauk
 
 
       !=========================================================
@@ -2624,6 +3041,7 @@ module function_ops
       end subroutine dealias_scalar
 
 
+
       !==========================================
       ! PERFORM DEALIASING USING CUT OFF
       ! n_cut = 2/(p+1) n
@@ -2850,10 +3268,10 @@ module function_ops
       END FUNCTION global_summed_field_inner_product 
 
       !======================================================
-      ! CALCULATE THE SOBOLEV GRADIENT OF ORDER order, GIVEN THE L2 GRADIENT
+      ! CALCULATE THE HILBERT SPACE GRADIENT OF ORDER order, GIVEN THE L2 GRADIENT
       ! i.e. Fourier (gradOut) = Fourier (gradIn) / (1+l|xi|)^(2*order)
       !======================================================
-      SUBROUTINE SobolevGradient(grad, order)
+      SUBROUTINE HilbertGradient(grad, order)
          USE global_variables
          USE fftwfunction
          IMPLICIT NONE
@@ -2897,7 +3315,801 @@ module function_ops
          DEALLOCATE( aux )
          DEALLOCATE( faux )
 
-      END SUBROUTINE SobolevGradient
+      END SUBROUTINE HilbertGradient
+
+
+      !======================================================
+      ! CALCULATE THE NEXT ITERATION OF THE BANACH GRADIENT
+      ! given the L2 gradient, the previous iteration (v_old), lambda (the lagrange multiplier fixing the norm), rho (the lagrange multiplier fixing the divergence free condition)
+      !======================================================
+      function BanachGradientIteration(l2Grad, v_old, lambda, rho, tau) result (v_new)
+         USE global_variables
+         USE fftwfunction
+         IMPLICIT NONE
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: l2Grad, v_old
+         real(pr), dimension(1:n(1),1:n(2),1:local_N), intent(in) :: rho ! lagrange multiplier for divergence free
+         real(pr), intent(in) :: lambda   ! lagrange multiplier for norm
+         real(pr), intent(in) :: tau      ! step size
+
+         real(pr) :: s                    ! s = 3q/(q+1)
+         real(pr) :: X, Y, Z
+         real(pr), dimension(1:3) :: dx
+         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: v_new
+
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: rhs
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: matrix_f
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3) :: tensor_g
+         real(pr) :: norm ! to normalize
+
+         complex(pr), dimension(:,:,:,:), allocatable :: rhs_hat
+
+         real(pr), dimension(:,:,:), allocatable :: tempSca
+         real(pr), dimension(:,:,:,:), allocatable :: tempVec
+         real(pr), dimension(:,:,:,:,:,:), allocatable :: temp_tensor3
+         
+         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, full_matrix, full_matrix_inverted
+         complex(pr), dimension(:,:,:,:), allocatable :: temp_vector
+         complex(pr), dimension(:,:), allocatable :: basis_function_x, basis_function_y, basis_function_z ! each 1/n_j e^{ik_j x_j) to have 3*res^2 instead of res^6 arrays
+
+         integer :: ii, jj, kk, ll, mm
+
+         complex(pr), dimension(:,:,:), allocatable :: aux,faux
+
+         
+
+
+         !REAL(pr) :: ksq
+         !INTEGER :: ii,jj,kk
+
+         s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
+
+         !if(rank==0) print*, "tau", tau
+         call BanachGradient_calcFmatrixGtensorRhs(l2Grad, v_old, lambda, rho, matrix_f, tensor_g, rhs, tau)
+
+         !!! define basis functions !!!
+
+         dx = 1.0_pr/REAL(n, pr)
+      
+         allocate(basis_function_x(1:n(1),1:n(1)))
+         allocate(basis_function_y(1:n(2),1:n(2)))
+         allocate(basis_function_z(1:local_n,1:local_n))
+         ! basis_func_x = 1/n_x e^{ik_x x}           b_f_x(ii,jj) = ... x(ii) k(jj) ...
+         do ii=1,n(1)
+            X = REAL(ii-1,pr)*dx(1)
+            do jj=1,n(1)
+               basis_function_x(ii,jj) = 1.0_pr/real(n(1),pr)*exp(dcmplx(0.0_pr, 1.0_pr)*(K1(jj)*X))
+            end do
+         end do
+         ! basis_func_y = 1/n_y e^{ik_y y}           b_f_y(ii,jj) = ... y(ii) k(jj) ...
+         do ii=1,n(2)
+            Y = REAL(ii-1,pr)*dx(2)
+            do jj=1,n(2)
+               basis_function_y(ii,jj) = 1.0_pr/real(n(2),pr)*exp(dcmplx(0.0_pr, 1.0_pr)*(K2(jj)*Y))
+            end do
+         end do
+         ! basis_func_z = 1/n_y e^{ik_z z}           b_f_z(ii,jj) = ... z(ii) k(jj) ...
+         do ii=1,local_N
+            Z = REAL(ii+local_k_offset-1,pr)*dx(3)
+            do jj=1,local_N
+               basis_function_z(ii,jj) = 1.0_pr/real(n(3),pr)*exp(dcmplx(0.0_pr, 1.0_pr)*(K3(jj+local_k_offset)*Z))
+            end do
+         end do
+
+
+
+
+
+
+         allocate(temp_tensor3(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3))
+         allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
+         allocate(tempSca(1:n(1),1:n(2),1:local_N))
+
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                     tempVec(:,:,:,:) = tensor_g(:,:,:,:,jj,kk,ll)
+                     call divergence(tempVec,tempSca)
+                     temp_tensor3(:,:,:,jj,kk,ll) = tempSca       ! temp_tensor3(:,:,:,jj,kk,ll) = partial_i g_ijkl
+               end do
+            end do
+         end do
+
+
+         deallocate(tempSca)
+         deallocate(tempVec)
+
+         ! temp_vector_j = i k_j
+         allocate(temp_vector(1:n(1),1:n(2),1:local_N,1:3))
+         DO kk = 1, local_N
+            DO jj = 1, n(2)
+               DO ii = 1, n(1)
+                  temp_vector(ii,jj,kk,1) = dcmplx(0.0_pr, K1(ii))
+                  temp_vector(ii,jj,kk,2) = dcmplx(0.0_pr, K2(jj))
+                  temp_vector(ii,jj,kk,3) = dcmplx(0.0_pr, K3(kk+local_k_offset))
+               END DO
+            END DO
+         END DO
+
+         ! tempmatrix_kl = i partial_s g_sjkl k_j
+         allocate(temp_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         temp_matrix = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
+                  ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+               end do
+            end do
+         end do
+
+
+         allocate(full_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         ! full_matrix = f_lm - i partial_s g_sjml k_j + ...(later)...
+         full_matrix(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient * temp_matrix(:,:,:,:,:)
+
+
+         ! temp_tensor3_jml = g_sjml i k_s
+         temp_tensor3 = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  do ii=1,3
+                     temp_tensor3(:,:,:,jj,kk,ll) = temp_tensor3(:,:,:,jj,kk,ll) + tensor_g(:,:,:,ii,jj,kk,ll)*temp_vector(:,:,:,ii)
+                     ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+                  end do
+               end do
+            end do
+         end do
+
+         ! temp_matrix = g_sjml (i k_s) (i k_j) = temp_tensor3_jml (i k_j)
+         temp_matrix = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  do ii=1,3
+                     temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
+                     ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+                  end do
+               end do
+            end do
+         end do
+
+
+         deallocate(temp_tensor3)
+
+
+         ! full_matrix = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
+         !             = f_lm - i partial_s g_sjml k_j - g_sjml (i k_s) (i k_j)
+         full_matrix(:,:,:,:,:) = full_matrix(:,:,:,:,:) - BanachGradientLCoefficient * temp_matrix(:,:,:,:,:)
+
+
+         ! full_matrix(i,j,k) = (f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j)(x(i),y(j),z(k)) * phi(x(i),y(j),z(k), k_1(i), k_2(j), k_3(k))
+         ! i.e. evaluate the basis function at "diagonals", i.e. basis_func_x(ii, ii)
+         ! so we use the same indices for physical space as for fourier space
+         allocate(aux(1:n(1),1:n(2),1:local_N))
+         allocate(faux(1:n(1),1:n(2),1:local_N))
+         do mm=1,3
+            do ll=1,3
+               do kk=1,local_n
+                  do jj=1,n(2)
+                     do ii=1,n(1)
+                        full_matrix(ii,jj,kk,ll,mm) = full_matrix(ii,jj,kk,ll,mm)*basis_function_x(ii,ii)*basis_function_y(jj,jj)*basis_function_z(kk,kk)
+                     end do
+                  end do
+               end do
+               if(toDealias) then
+                  call fftfwd(full_matrix(:,:,:,ll,mm),faux)
+                  call dealiasing_cutoff_scalar_complex(faux, 2.0_pr)
+                  call fftbwd(faux, aux)
+                  full_matrix(:,:,:,ll,mm) = aux(:,:,:)
+               end if
+            end do
+         end do
+         deallocate(aux)
+         deallocate(faux)
+         
+
+         allocate(full_matrix_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
+
+         full_matrix_inverted = matrixInversion3by3(full_matrix)
+
+         deallocate(full_matrix)
+
+         ! new = (fullmatrix)^{-1} rhs
+         temp_vector(:,:,:,:) = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               temp_vector(:,:,:,jj) = temp_vector(:,:,:,jj) + full_matrix_inverted(:,:,:,jj,ii)*rhs(:,:,:,ii)
+            end do
+         end do
+         deallocate(full_matrix_inverted)
+
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         
+         allocate(aux(1:n(1),1:n(2),1:local_N))
+         allocate(faux(1:n(1),1:n(2),1:local_N))
+         do ii=1,3
+            faux(:,:,:) = temp_vector(:,:,:,ii)
+            call fftbwd(faux,aux)
+            v_new(:,:,:,ii) = real(aux,pr)
+         end do
+
+         norm = calc_global_W1s_norm(v_new, s)
+         v_new(:,:,:,:) = v_new(:,:,:,:)/norm
+
+
+         
+         deallocate(aux)
+         deallocate(faux)
+
+      end function BanachGradientIteration
+
+      !======================================================
+      ! CALCULATE THE NEXT ITERATION OF THE BANACH GRADIENT
+      ! given the L2 gradient, the previous iteration (v_old), lambda (the lagrange multiplier fixing the norm), rho (the lagrange multiplier fixing the divergence free condition)
+      !======================================================
+      function BanachGradientIterationOLD(l2Grad, v_old, lambda, rho, tau) result (v_new)
+         USE global_variables
+         USE fftwfunction
+         IMPLICIT NONE
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: l2Grad, v_old
+         real(pr), dimension(1:n(1),1:n(2),1:local_N), intent(in) :: rho ! lagrange multiplier for divergence free
+         real(pr), intent(in) :: lambda   ! lagrange multiplier for norm
+         real(pr), intent(in) :: tau      ! step size
+         real(pr) :: s                    ! s = 3q/(q+1)
+         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: v_new
+
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: rhs
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: matrix_f
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3) :: tensor_g
+         real(pr) :: norm ! to normalize
+
+
+
+         complex(pr), dimension(:,:,:,:), allocatable :: rhs_hat
+
+         real(pr), dimension(:,:,:), allocatable :: tempSca
+         real(pr), dimension(:,:,:,:), allocatable :: tempVec
+         real(pr), dimension(:,:,:,:,:,:), allocatable :: temp_tensor3
+         
+         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, full_matrix, full_matrix_inverted
+         complex(pr), dimension(:,:,:,:), allocatable :: temp_vector
+
+         integer :: ii, jj, kk, ll
+
+         complex(pr), dimension(:,:,:), allocatable :: aux,faux
+
+
+         s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
+
+
+         call BanachGradient_calcFmatrixGtensorRhs(l2Grad, v_old, lambda, rho, matrix_f, tensor_g, rhs, tau)
+
+         allocate(full_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         allocate(temp_tensor3(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3))
+         allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
+         allocate(tempSca(1:n(1),1:n(2),1:local_N))
+
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                     tempVec(:,:,:,:) = tensor_g(:,:,:,:,jj,kk,ll)
+                     call divergence(tempVec,tempSca)
+                     temp_tensor3(:,:,:,jj,kk,ll) = tempSca       ! temp_tensor3(:,:,:,jj,kk,ll) = partial_i g_ijkl
+               end do
+            end do
+         end do
+
+         deallocate(tempSca)
+         deallocate(tempVec)
+
+         ! temp_vector_j = i k_j
+         allocate(temp_vector(1:n(1),1:n(2),1:local_N,1:3))
+         DO kk = 1, local_N
+            DO jj = 1, n(2)
+               DO ii = 1, n(1)
+                  temp_vector(ii,jj,kk,1) = dcmplx(0.0_pr, K1(ii))
+                  temp_vector(ii,jj,kk,2) = dcmplx(0.0_pr, K2(jj))
+                  temp_vector(ii,jj,kk,3) = dcmplx(0.0_pr, K3(kk+local_k_offset))
+               END DO
+            END DO
+         END DO
+
+         ! tempmatrix = i partial_s g_sjkl k_j
+         allocate(temp_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         temp_matrix = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
+                  ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+               end do
+            end do
+         end do
+
+         ! full_matrix = f_lm - i partial_s g_sjml k_j + ...(later)...
+         full_matrix(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
+
+         ! temp_tensor3 = g_sjml (i k_s)
+         temp_tensor3 = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  do ii=1,3
+                     temp_tensor3(:,:,:,jj,kk,ll) = temp_tensor3(:,:,:,jj,kk,ll) + tensor_g(:,:,:,ii,jj,kk,ll)*temp_vector(:,:,:,ii)
+                     ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+                  end do
+               end do
+            end do
+         end do
+         ! temp_matrix = g_sjml * (i k_s) (i k_j) = temp_tensor3_jkl * i k_j
+         temp_matrix = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
+                  ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
+               end do
+            end do
+         end do
+
+         deallocate(temp_tensor3)
+
+
+         ! full_matrix = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
+         !             = f_lm - partial_s g_sjml (i k_j) - g_sjml (i k_s) (i k_j)
+         full_matrix(:,:,:,:,:) = full_matrix(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
+
+         allocate(full_matrix_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
+
+         full_matrix_inverted = matrixInversion3by3(full_matrix)
+
+         deallocate(full_matrix)
+
+         allocate(rhs_hat(1:n(1),1:n(2),1:local_N,1:3))
+         allocate(aux(1:n(1),1:n(2),1:local_N))
+         allocate(faux(1:n(1),1:n(2),1:local_N))
+
+         do ii=1,3
+            aux = dcmplx(rhs(:,:,:,ii),0.0_pr)
+            call fftfwd(aux,faux)
+            rhs_hat(:,:,:,ii) = faux(:,:,:)
+         end do
+
+
+         ! new = (fullmatrix)^{-1} rhs
+         temp_vector(:,:,:,:) = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               temp_vector(:,:,:,ii) = temp_vector(:,:,:,ii) + full_matrix_inverted(:,:,:,ii,jj)*rhs_hat(:,:,:,jj)
+            end do
+         end do
+         deallocate(full_matrix_inverted)
+         deallocate(rhs_hat)
+
+         do ii=1,3
+            faux(:,:,:) = temp_vector(:,:,:,ii)
+            call fftbwd(faux,aux)
+            v_new(:,:,:,ii) = real(aux,pr)
+         end do
+
+         norm = calc_global_W1s_norm(v_new, s)
+         v_new(:,:,:,:) = v_new(:,:,:,:)/norm
+
+         deallocate(aux)
+         deallocate(faux)
+
+      end function BanachGradientIterationOLD
+
+
+
+      !======================================================
+      ! CALCULATE BANACH GRADIENT TERMS
+      !  f = |v|^{s-2} ((s-2) e_v e_v + unitMatrix)
+      !  g_ijkl = |nabla v|^{s-2} ((s-2) e_{partial_i v_k} e_{partial_j v_l} + delta_ij delta_lk )
+      ! or 
+      !  f_ij = |v|^{s-4} ((s-2) v_i v_j + |v|^2 delta_ij)
+      !  g_ijkl = |nabla v|^{s-4} ((s-2) partial_i v_k partial_j v_l + |nabla v|^2 delta_ij delta_lk )
+      ! rhs = s|v|^{s-2} v - s partial_j (|nabla v|^{s-2} partial_j v) - 1/lambda nabla rho + 1/lambda L2Grad
+      !======================================================
+      subroutine BanachGradient_calcFmatrixGtensorRhs(l2Grad, v_old, lambda, rho, matrix_f, tensor_g, rhs, tau)
+         USE global_variables
+         USE fftwfunction
+         IMPLICIT NONE
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: l2Grad, v_old
+         real(pr), dimension(1:n(1),1:n(2),1:local_N), intent(in) :: rho ! lagrange multiplier for divergence free
+         real(pr), intent(in) :: lambda   ! lagrange multiplier for norm
+         real(pr), intent(in) :: tau      ! step size
+         real(pr) :: s                    ! s = 3q/(q+1)
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(out) :: rhs
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3), intent(out) :: matrix_f
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3), intent(out) :: tensor_g
+
+         real(pr), dimension(:,:,:,:,:), allocatable :: gradv_old          !gradv_old(:,:,:,ii,jj) = partial_j v_i
+
+         real(pr), dimension(:,:,:), allocatable :: normv_old, normv_oldPow, normgradv_old, normgradv_oldPow
+
+         real(pr), dimension(:,:,:), allocatable :: tempSca
+         real(pr), dimension(:,:,:,:), allocatable :: tempVec
+         real(pr), dimension(:,:,:,:,:), allocatable :: tempTensor
+         
+         real(pr), dimension(:,:,:,:), allocatable :: e_v_old  ! unit vector in direction banachGrad_old
+         real(pr), dimension(:,:,:,:,:), allocatable :: e_gradv_old  ! unit (norm) matrix in direction nabla (banachGrad_old) with convention (:,:,:,i,j) = partial_j v_i
+
+
+         integer :: ii, jj, kk, ll
+
+
+         s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
+
+         allocate(gradv_old(1:n(1),1:n(2),1:local_N,1:3,1:3))
+
+         
+         allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
+         do ii=1,3
+            call gradient(v_old(:,:,:,ii),tempVec)
+            gradv_old(:,:,:,ii,:) = tempVec(:,:,:,:)
+         end do
+         deallocate(tempVec)
+
+         allocate(normv_old(1:n(1),1:n(2),1:local_N))
+         allocate(normv_oldPow(1:n(1),1:n(2),1:local_N))
+         allocate(normgradv_old(1:n(1),1:n(2),1:local_N))
+         allocate(normgradv_oldPow(1:n(1),1:n(2),1:local_N))
+
+         
+         normv_old(:,:,:) = calc_pointwiseVectorNorm(v_old)
+         normgradv_old(:,:,:) = calc_pointwiseFrobeniusNorm(gradv_old)
+
+         
+
+         !!! calc tensor_g and matrix_f !!!
+
+         if(use_e_u_instead_of_uqMinus4) then
+            allocate( e_v_old(1:n(1),1:n(2),1:local_N,1:3) )
+            e_v_old = calc_unitVectorInUdirection(v_old)
+            normv_oldPow = calc_gk_order2(normv_old, s-2.0_pr)
+
+
+            ! f = |v|^{s-2} (s-2) e_v e_v + ...(later)...
+            if(toDealias .and. dealiase_if_mult_by_e_u) then
+               do jj=1,3
+                  do ii=1,3
+                     matrix_f(:,:,:,ii,jj) = (s-2.0_pr) * e_v_old(:,:,:,ii) * e_v_old(:,:,:,jj)
+                     call dealias_scalar(matrix_f(:,:,:,ii,jj),2.0_pr)
+                     matrix_f(:,:,:,ii,jj) = matrix_f(:,:,:,ii,jj)*normv_oldPow(:,:,:)
+                     call dealias_scalar(matrix_f(:,:,:,ii,jj),2.0_pr)
+                  end do
+               end do
+            else
+               do jj=1,3
+                  do ii=1,3
+                     matrix_f(:,:,:,ii,jj) = normv_oldPow(:,:,:)*(s-2.0_pr) * e_v_old(:,:,:,ii) * e_v_old(:,:,:,jj)
+                  end do
+               end do
+            end if
+
+            ! f = |v|^{s-2} ((s-2) e_v e_v + unitMatrix)
+            do ii=1,3
+               matrix_f(:,:,:,ii,ii) = matrix_f(:,:,:,ii,ii) + normv_oldPow(:,:,:)
+            end do
+            deallocate(e_v_old)
+
+
+
+
+
+            ! g_ijkl = |nabla v|^{s-2} ((s-2) e_{partial_i v_k} e_{partial_j v_l} + delta_ij delta_lk )
+
+
+            allocate( e_gradv_old(1:n(1),1:n(2),1:local_N,1:3,1:3) )
+            e_gradv_old = calc_unitMatrixInMdirection(gradv_old)
+            normgradv_oldPow = calc_gk_order2(normgradv_old, s-2.0_pr)
+
+            if(toDealias .and. dealiase_if_mult_by_e_u) then
+               do ll=1,3
+                  do kk=1,3
+                     do jj=1,3
+                        do ii=1,3
+                           ! g_ijkl = |nabla v|^{s-2} (s-2) e_{partial_i v_k} e_{partial_j v_l} + ...(later)...
+                           tensor_g(:,:,:,ii,jj,kk,ll) = (s-2.0_pr) * e_gradv_old(:,:,:,kk,ii) * e_gradv_old(:,:,:,ll,jj)
+                           call dealias_scalar(tensor_g(:,:,:,ii,jj,kk,ll),2.0_pr)
+                           tensor_g(:,:,:,ii,jj,kk,ll) = normgradv_oldPow(:,:,:) * tensor_g(:,:,:,ii,jj,kk,ll)
+                           call dealias_scalar(tensor_g(:,:,:,ii,jj,kk,ll),2.0_pr)
+                        end do
+                     end do
+                  end do
+               end do
+            else
+               do ll=1,3
+                  do kk=1,3
+                     do jj=1,3
+                        do ii=1,3
+                           ! g_ijkl = |nabla v|^{s-2} (s-2) e_{partial_i v_k} e_{partial_j v_l} + ...(later)...
+                           tensor_g(:,:,:,ii,jj,kk,ll) = normgradv_oldPow(:,:,:) * (s-2.0_pr) * e_gradv_old(:,:,:,kk,ii) * e_gradv_old(:,:,:,ll,jj)
+                        end do
+                     end do
+                  end do
+               end do
+            end if
+
+            do kk=1,3
+               do ii=1,3
+                  ! g_ijkl = |nabla v|^{s-2} ((s-2) e_{partial_i v_k} e_{partial_j v_l} + delta_ij delta_lk )
+                  tensor_g(:,:,:,ii,ii,kk,kk) = tensor_g(:,:,:,ii,ii,kk,kk) + normgradv_oldPow(:,:,:)
+               end do
+            end do
+
+            deallocate(e_gradv_old)
+
+         else
+
+            normv_oldPow = calc_gk_order2(normv_old, s-4.0_pr)
+
+            ! f = |v|^{s-4} (s-2) v v + ...(later)...
+            if(toDealias) then
+               do jj=1,3
+                  do ii=1,3
+                     matrix_f(:,:,:,ii,jj) = (s-2.0_pr) * v_old(:,:,:,ii) * v_old(:,:,:,jj)
+                     call dealias_scalar(matrix_f(:,:,:,ii,jj),2.0_pr)
+                     matrix_f(:,:,:,ii,jj) = normv_oldPow(:,:,:) * matrix_f(:,:,:,ii,jj)
+                     call dealias_scalar(matrix_f(:,:,:,ii,jj),2.0_pr)
+                  end do
+               end do
+            else
+               do jj=1,3
+                  do ii=1,3
+                     matrix_f(:,:,:,ii,jj) = normv_oldPow(:,:,:) * (s-2.0_pr) * v_old(:,:,:,ii) * v_old(:,:,:,jj)
+                  end do
+               end do
+            end if
+
+            ! f_ij = |v|^{s-4} ((s-2) v_i v_j + |v|^2 delta_ij)
+            !      = |v|^{s-4} (s-2) v_i v_j + |v|^{s-2} delta_ij
+            normv_oldPow = calc_gk_order2(normv_old, s-2.0_pr)
+            
+            do ii=1,3
+               matrix_f(:,:,:,ii,ii) = matrix_f(:,:,:,ii,ii) + normv_oldPow(:,:,:)
+            end do
+
+            ! g_ijkl = |nabla v|^{s-4} ((s-2) partial_i v_k partial_j v_l + |nabla v|^2 delta_ij delta_lk )
+            normgradv_oldPow = calc_gk_order2(normgradv_old, s-4.0_pr)
+
+            if(toDealias) then
+               do ll=1,3
+                  do kk=1,3
+                     do jj=1,3
+                        do ii=1,3
+                           ! g_ijkl = |nabla v|^{s-4} (s-2) partial_i v_k partial_j v_l + ...(later)...
+                           tensor_g(:,:,:,ii,jj,kk,ll) = (s-2.0_pr) * gradv_old(:,:,:,kk,ii) * gradv_old(:,:,:,ll,jj)
+                           call dealias_scalar(tensor_g(:,:,:,ii,jj,kk,ll), 2.0_pr)
+                           tensor_g(:,:,:,ii,jj,kk,ll) = normgradv_oldPow(:,:,:) * tensor_g(:,:,:,ii,jj,kk,ll)
+                           call dealias_scalar(tensor_g(:,:,:,ii,jj,kk,ll), 2.0_pr)                           
+                        end do
+                     end do
+                  end do
+               end do
+            else
+               do ll=1,3
+                  do kk=1,3
+                     do jj=1,3
+                        do ii=1,3
+                           ! g_ijkl = |nabla v|^{s-4} (s-2) partial_i v_k partial_j v_l + ...(later)...
+                           tensor_g(:,:,:,ii,jj,kk,ll) = normgradv_oldPow(:,:,:) * (s-2.0_pr) * gradv_old(:,:,:,kk,ii) * gradv_old(:,:,:,ll,jj)
+                        end do
+                     end do
+                  end do
+               end do
+            end if
+
+            normgradv_oldPow = calc_gk_order2(normgradv_old, s-2.0_pr)
+            do kk=1,3
+               do ii=1,3
+                  ! g_ijkl = |nabla v|^{s-4} ((s-2) partial_i v_k partial_j v_l + |nabla v|^2 delta_ij delta_lk )
+                  tensor_g(:,:,:,ii,ii,kk,kk) = tensor_g(:,:,:,ii,ii,kk,kk) + normgradv_oldPow(:,:,:)
+               end do
+            end do
+         end if
+
+         !!! tensor_g and matrix_f done !!!
+
+         
+         !!! calculating rhs !!!
+         ! rhs = (s-1-tau)|v|^{s-2} v - (s-1-tau) partial_j (|nabla v|^{s-2} partial_j v) - tau/lambda nabla rho + tau/lambda L2Grad
+         normv_oldPow = calc_gk_order2(normv_old, s-2.0_pr)
+         normgradv_oldPow = calc_gk_order2(normgradv_old, s-2.0_pr)
+         allocate(tempTensor(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         
+         do ii=1,3
+            rhs(:,:,:,ii) = BanachGradientLCoefficient * (s-1.0_pr-tau) * normv_oldPow(:,:,:) * v_old(:,:,:,ii)
+            if (toDealias) call dealias_scalar(rhs(:,:,:,ii), 2.0_pr)
+         end do
+
+         do jj=1,3
+            do ii=1,3
+               ! tempTensor(i,j) = |nabla v|^{s-2} partial_j v_i
+               tempTensor(:,:,:,ii,jj) = normgradv_oldPow(:,:,:)*gradv_old(:,:,:,ii,jj)    ! gradv(:,:,:,i,j) = partial_j v_i
+               if (toDealias) call dealias_scalar(tempTensor(:,:,:,ii,jj), 2.0_pr)
+            end do
+         end do
+
+         allocate(tempSca(1:n(1),1:n(2),1:local_N))
+         allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
+         do kk=1,3
+            tempVec(:,:,:,:) = tempTensor(:,:,:,kk,:)   ! tempTensor(:,:,:,i,j) = ... * partial_j v_i
+            call divergence(tempVec, tempSca)
+            rhs(:,:,:,kk) = rhs(:,:,:,kk) - BanachGradientWCoefficient * (s-1.0_pr-tau) * tempSca(:,:,:)
+         end do
+
+         deallocate(tempSca)
+         deallocate(tempTensor)
+
+         call gradient(rho,tempVec)
+         rhs(:,:,:,:) = rhs(:,:,:,:) - tau/lambda * tempVec(:,:,:,:) + tau/lambda*l2Grad(:,:,:,:)
+
+         deallocate(tempVec)
+         !!! calculating f, g, rhs done !!!
+
+      end subroutine BanachGradient_calcFmatrixGtensorRhs
+
+
+      !======================================================
+      ! CALCULATE THE RHO IN THE BANACH GRADIENT
+      ! given the things solve rho = lambda nabla cdot (|v|^{s-2} v - partial_j |nabla v|^{s-2} partial_j v)
+      !======================================================
+      function BanachGradientCalcRho(v, lambda) result (rho)
+         USE global_variables
+         USE fftwfunction
+         IMPLICIT NONE
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: v
+         real(pr), intent(in) :: lambda   ! lagrange multiplier for norm
+         real(pr) :: s                    ! s = 3q/(q+1)
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: rho
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: poisson_rhs_vec
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: poisson_rhs
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: temp_sca
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: temp_vec
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: temp_matrix
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: gradv
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_N) :: v_norm, gradv_norm, v_normPow, gradv_normPow
+
+         integer :: ii, jj
+
+
+         s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
+
+         do ii=1,3
+            call gradient(v(:,:,:,ii),temp_vec)
+            do jj=1,3
+               gradv(:,:,:,ii,jj) = temp_vec(:,:,:,jj)         ! grad v(:,:,:,ii,jj) = partial_j v_i
+            end do
+         end do
+
+         v_norm(:,:,:) = calc_pointwiseVectorNorm(v)
+         gradv_norm(:,:,:) = calc_pointwiseFrobeniusNorm(gradv)
+
+         v_normPow = calc_gk_order2(v_norm, s-2.0_pr)
+         gradv_normPow = calc_gk_order2(gradv_norm, s-2.0_pr)
+
+         ! poisson_rhs_vec = |v|^{s-2} v - ...(later)...
+         do ii=1,3
+            poisson_rhs_vec(:,:,:,ii) = v_normPow(:,:,:)*v(:,:,:,ii)
+            if(toDealias) call dealias_scalar(poisson_rhs_vec(:,:,:,ii), 2.0_pr)
+         end do
+
+         !temp_matrix(:,:,:,i,j) = |nabla v|^{s-2} partial_j v_i
+         do jj=1,3
+            do ii=1,3
+               temp_matrix(:,:,:,ii,jj) = gradv_normPow(:,:,:)*gradv(:,:,:,ii,jj)
+               if(toDealias) call dealias_scalar(temp_matrix(:,:,:,ii,jj), 2.0_pr)
+            end do
+         end do
+
+
+         ! poisson_rhs_vec = lambda ( |v|^{s-2} v - partial_k (|nabla v|^{s-2} partial_k v))
+         do ii=1,3
+            ! temp_matrix(:,:,:,ii,jj) = ...*partial_j v_i
+            ! temp_sca(:,:,:,jj) = partial_j ( ...* partial_j v_i )
+            temp_vec(:,:,:,:) = temp_matrix(:,:,:,ii,:)
+            call divergence(temp_vec, temp_sca)
+            poisson_rhs_vec(:,:,:,ii) = lambda*poisson_rhs_vec(:,:,:,ii) - BanachGradientWCoefficient*lambda*temp_sca(:,:,:)            
+         end do
+
+         call divergence(poisson_rhs_vec, poisson_rhs)
+
+         call solve_poisson(poisson_rhs, 1.0_pr, rho)
+
+      end function BanachGradientCalcRho
+
+
+
+      !=======================================================
+      ! CALCULATE THE GLOBAL SUMMED INNER PRODUCT BETWEEN TWO (vector) FIELDS
+      !=======================================================
+      FUNCTION matrixInversion3by3(matrix) RESULT (result)
+         USE global_variables
+         use mpi
+         IMPLICIT NONE
+   
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3,1:3), intent(in) :: matrix
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3,1:3) :: result, test
+         complex(pr), DIMENSION(1:n(1),1:n(2),1:local_N) :: a,b,c,d,e,f,g,h,i, fac
+         integer :: ii, jj, kk
+
+         a(:,:,:) = matrix(:,:,:,1,1)
+         b(:,:,:) = matrix(:,:,:,1,2)
+         c(:,:,:) = matrix(:,:,:,1,3)
+         d(:,:,:) = matrix(:,:,:,2,1)
+         e(:,:,:) = matrix(:,:,:,2,2)
+         f(:,:,:) = matrix(:,:,:,2,3)
+         g(:,:,:) = matrix(:,:,:,3,1)
+         h(:,:,:) = matrix(:,:,:,3,2)
+         i(:,:,:) = matrix(:,:,:,3,3)
+
+         !fac = (a(ei-fh)+b(fg-di)+c(dh-eg))^{-1}
+         fac(:,:,:) = 1.0_pr/(a(:,:,:)*(e(:,:,:)*i(:,:,:)-f(:,:,:)*h(:,:,:))+b(:,:,:)*(f(:,:,:)*g(:,:,:)-d(:,:,:)*i(:,:,:))+c(:,:,:)*(d(:,:,:)*h(:,:,:)-e(:,:,:)*g(:,:,:)))
+
+         ! ei-fh  ch-bi  bf-ce
+         ! fg-di  ai-cg  cd-af
+         ! dh-eg  bg-ah  ae-bd
+
+         result(:,:,:,1,1) = e(:,:,:)*i(:,:,:)-f(:,:,:)*h(:,:,:)
+         result(:,:,:,1,2) = c(:,:,:)*h(:,:,:)-b(:,:,:)*i(:,:,:)
+         result(:,:,:,1,3) = b(:,:,:)*f(:,:,:)-c(:,:,:)*e(:,:,:)
+         result(:,:,:,2,1) = f(:,:,:)*g(:,:,:)-d(:,:,:)*i(:,:,:)
+         result(:,:,:,2,2) = a(:,:,:)*i(:,:,:)-c(:,:,:)*g(:,:,:)
+         result(:,:,:,2,3) = c(:,:,:)*d(:,:,:)-a(:,:,:)*f(:,:,:)
+         result(:,:,:,3,1) = d(:,:,:)*h(:,:,:)-e(:,:,:)*g(:,:,:)
+         result(:,:,:,3,2) = b(:,:,:)*g(:,:,:)-a(:,:,:)*h(:,:,:)
+         result(:,:,:,3,3) = a(:,:,:)*e(:,:,:)-b(:,:,:)*d(:,:,:)
+
+         do jj=1,3
+            do ii=1,3
+               result(:,:,:,ii,jj) = fac(:,:,:)*result(:,:,:,ii,jj)
+            end do
+         end do
+
+         test = 0.0_pr
+         do kk=1,3
+            do jj=1,3
+               do ii=1,3
+                  test(:,:,:,ii,kk) = test(:,:,:,ii,kk) + result(:,:,:,ii,jj)*matrix(:,:,:,jj,kk)
+               end do
+            end do
+         end do
+
+         if(.false. .and. rank == 0) then
+            print*, "matrix inversion test start"
+   
+            print*, "a"
+            print*, test(1,1,1,1,:)
+            print*, test(1,1,1,2,:)
+            print*, test(1,1,1,3,:)
+   
+            print*, "b"
+            print*, test(2,2,1,1,:)
+            print*, test(2,2,1,2,:)
+            print*, test(2,2,1,3,:)
+   
+            print*, "c"
+            print*, test(3,2,4,1,:)
+            print*, test(3,2,4,2,:)
+            print*, test(3,2,4,3,:)
+            print*, "matrix inversion test end"
+         end if
+      END FUNCTION matrixInversion3by3 
+
 
 
 END MODULE

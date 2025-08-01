@@ -50,50 +50,73 @@
       ! iguess 4 = load random expSpec a
       ! iguess 5 = load random polySpec a
       ! iguess 6 = load random k a
+      ! iguess 7 = save random
       ! iguess 9 = load temp &loadTempFunctionName
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
       iguess = 50
 
       if(iguess==9) then
-         loadTempFunctionName = ".nc"
+         loadTempFunctionName = "u_result_0724_q3_B012_iter0100.nc"
+         bIterOffset = 11                                ! should match the loaded iteration or 0 if new
+                                                                     !0 = new optimization
+                                                                     !8 if continuing u_result_B009_iter1500.nc
+                                                                     !9 if u_result_B009_iterend.nc
+         optimizationIterOffset = 100                   ! should match the loaded iter or 0 if new
+                                                                     !0 = new optimization
+                                                                     !1500 if continuing u_result_B009_iter1500.nc
+                                                                     !0 if u_result_B009_iterend.nc
+                                                                     !just for documentation how many iterations were needed
+      else
+         loadTempFunctionName = "iguess00"      ! allocate string resources
+         write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
+         bIterOffset = 0
+         optimizationIterOffset = 0
       end if
 
-      bIterOffset = 0       ! should match the loaded iteration or 0 if new
-
+      
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
       lebesgueQ = 4.0_pr
 
-      
-      IF (rank==0) print*, "start"
 
-      !=============================================
-      !--If put discretization number before MPI_BARRIER, we have to MPI_BCAST n to all processors
-      !=============================================
-      C_n(1) = RESOL
-      C_n(2) = RESOL
-      C_n(3) = RESOL
-      n(1) = RESOL
-      n(2) = RESOL
-      n(3) = RESOL
+
+      IF (rank==0) print*, "start"
 
       !=============================================
       !--Initialize parameters values
       !=============================================
       CALL initialize()
       call init_fft()
+
+
+      !=============================================
+      !-- Initialize Data Folders
+      !=============================================
       call createDirectoryIfNonExistent(HomeDir)
+      call createDirectoryIfNonExistent(ncDir)
       call saveUsedParams()
 
       !=============================================
       ! Set initial Uvec
       !=============================================
-      CALL initial_guess
-         
+      call initial_guess
+      IF (.true.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"u0.nc", "netCDF")
+      IF (.true.) call calculateSaveSpectrum(uvec,"output/u0")
+      
 
-      if (rank == 0 .and. ((abs(viscCoefficient-1.0)>MACH_EPSILON) .or. (abs(pressureCoefficient-1.0)>MACH_EPSILON))) then
-         print*, "WARNING viscCoefficient ",viscCoefficient," or pressureCoefficient ", pressureCoefficient, "not 1"
+      if (rank == 0 .and. ((abs(viscCoefficient-1.0)>MACH_EPSILON))) then
+         print*, "WARNING viscCoefficient ",viscCoefficient, "not 1"
       end if
+      if (rank == 0 .and. ((abs(pressureCoefficient-1.0)>MACH_EPSILON))) then
+         print*, "WARNING pressureCoefficient ", pressureCoefficient, "not 1"
+      end if
+      if (rank == 0 .and. ((abs(BanachGradientWCoefficient-1.0)>MACH_EPSILON))) then
+         print*, "WARNING BanachGradientWCoefficient ", BanachGradientWCoefficient, "not 1"
+      end if
+      if (rank == 0 .and. ((abs(BanachGradientLCoefficient-1.0)>MACH_EPSILON))) then
+         print*, "WARNING BanachGradientLCoefficient ", BanachGradientLCoefficient, "not 1"
+      end if
+
       !=========================================================
       ! Create B value and result list
       !=========================================================
@@ -113,14 +136,20 @@
          B_list(1) = 1.0_pr
          do B_list_iterator=2,size(B_list)
             constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
-            if(constraintB>150.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/16.0_pr)
-            if(constraintB>170.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+            if(constraintB>100.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/16.0_pr)
+            if(constraintB>110.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+            B_list(B_list_iterator) = constraintB
+         end do
+      elseif(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
+         B_list(1) = 1.0_pr
+         do B_list_iterator=2,size(B_list)
+            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
             B_list(B_list_iterator) = constraintB
          end do
       else
          B_list(1) = 1.0_pr
          do B_list_iterator=2,size(B_list)
-            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
+            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
             B_list(B_list_iterator) = constraintB
          end do
       end if
@@ -130,7 +159,7 @@
       !=========================================================
       do B_list_iterator = 1+bIterOffset,size(B_list)+bIterOffset
          constraintB = B_list(B_list_iterator)
-         write(bIterTxt, '(i2.2)') B_list_iterator
+         write(bIterTxt, '(i3.3)') B_list_iterator
          write(bTxt, '(ES7.1)') constraintB
          if(rank==0) print*, "constraint B"//bIterTxt, constraintB
          !=========================================================

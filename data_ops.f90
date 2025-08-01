@@ -33,13 +33,13 @@ MODULE data_ops
 
           SELECT CASE (mysystem)
             case ("maxdLqdt")
-               filename = ConstraintDir//"u0"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u0"//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
                CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             case ("maxdLqdt_result")
-               filename = ConstraintDir//"u_result"//"_B"//bIterTxt//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u_result"//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
@@ -163,7 +163,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
               
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"
-          filename = ConstraintDir//"diagScalar"//"-B"//bIterTxt//"-iter-"//optimizationIterationTxt//".nc"   ! Newly added on May 8, 2017
+          filename = ncDir//"diagScalar"//"-B"//bIterTxt//"-iter-"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
 
           CALL save_field_R3toRn_ncdf(myfield, numFields, myFieldNames, filename)
 
@@ -194,7 +194,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields"//"-B"//bIterTxt//"-iter"//optimizationIterationTxt//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields"//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
@@ -232,17 +232,24 @@ MODULE data_ops
                write(10, "(A20, ES40.12)") "lebesgueQ", lebesgueQ
                write(10, "(A20, G40.12)") "iguess", iguess
                write(10, "(A20, A40)") "loadTempFunctionName", loadTempFunctionName
+               write(10, "(A20, I40)") "bIterOffset", bIterOffset
+               write(10, "(A20, I40)") "optimizationIterOffset", optimizationIterOffset
+               
+               
                write(10, "(A20)") " "
+               write(10, "(A20, G40.12)") "useBanachGradient", useBanachGradient
                write(10, "(A20, G40.12)") "useOrthogonalGradient", useOrthogonalGradient
                write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
                write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry
                write(10, "(A20)") " "
                write(10, "(A20, G40.12)") "normalizeDirection", normalizeDirection
+               write(10, "(A20, G40.12)") "use_e_u_auto_for_q_less_4", use_e_u_auto_for_q_less_4
                write(10, "(A20, G40.12)") "use_e_u_instead_of_uqMinus4", use_e_u_instead_of_uqMinus4
+               write(10, "(A20, G40.12)") "dealiase_if_mult_by_e_u", dealiase_if_mult_by_e_u
                write(10, "(A20)") " "
                write(10, "(A20, G40.12)") "MAX_ITER", MAX_ITER
-               write(10, "(A20, I40)") "MAX_ITER_CONSTR", MAX_ITER_CONSTR
                write(10, "(A20, ES40.12)") "OPTIM_TOL", OPTIM_TOL
+               write(10, "(A20, I40)") "resetMomentumTermEveryXiterations", resetMomentumTermEveryXiterations
                write(10, "(A20, ES40.12)") "MACH_EPSILON", MACH_EPSILON
                write(10, "(A20, ES40.12)") "TAU_MAX", TAU_MAX
                write(10, "(A20, ES40.12)") "lambda1", lambda1
@@ -250,6 +257,8 @@ MODULE data_ops
                write(10, "(A20, ES40.12)") "visc", visc
                write(10, "(A20, G40.12)") "viscCoefficient", viscCoefficient
                write(10, "(A20, G40.12)") "pressureCoefficient", pressureCoefficient
+               write(10, "(A20, G40.12)") "BanachGradientWCoefficient", BanachGradientWCoefficient
+               write(10, "(A20, G40.12)") "BanachGradientLCoefficient", BanachGradientLCoefficient
                write(10, "(A20)") " "
                write(10, "(A20, I40)") "local_N", local_N
                write(10, "(A20, I40)") "total_local_size", total_local_size
@@ -278,7 +287,7 @@ MODULE data_ops
           !end if
 
           !filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
-          filename = ConstraintDir//name//"-spectrum"//"-B"//bIterTxt//"-iter"//optimizationIterationTxt//".dat"
+          filename = ConstraintDir//name//"-spectrum"//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           DO i=1,n(1)
@@ -752,12 +761,13 @@ MODULE data_ops
         !==========================================
         ! SAVE OPTIMIZATION RESULT LIST
         !==========================================
-        SUBROUTINE save_to_optimizationResultList(B, J1, iter)
+        SUBROUTINE save_to_optimizationResultList(B, J1, iter, optimizationSuccessful)
          USE global_variables
          IMPLICIT NONE
 
          real(pr), intent(in) :: B, J1
-         integer, intent(in) :: iter
+         integer :: iter
+         logical, intent(in) :: optimizationSuccessful
          CHARACTER(200) :: filename
 
          character(4) :: lebesgueQtxt
@@ -766,6 +776,8 @@ MODULE data_ops
          
 
          filename = HomeDir//"q"//trim(lebesgueQtxt)//"-"//"results.dat"
+
+         if(.not.optimizationSuccessful) iter = - iter
          
          if(rank==0 .and. verboseOptimization) print*, "saving results to ", filename
          
@@ -809,7 +821,7 @@ MODULE data_ops
          
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//myOptimType//"_IG"//IGtxt//"_iter_info.dat"
           !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_iter_info.dat"   ! Newly added on May 8, 2017
-          filename = ConstraintDir//"iteration-info"//"-B"//bIterTxt//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"iteration-info"//"-B"//trim(bIterTxt)//".dat"   ! trim removes the blank space in "end " for "iterend "
           
           IF (iter == 0) THEN
              OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
@@ -1210,13 +1222,13 @@ MODULE data_ops
 
           CHARACTER(200) :: filename
           CHARACTER(2) :: K0txt, E0txt, IGtxt
-          CHARACTER(3) :: optimizationIterTxt
+          CHARACTER(4) :: optimizationIterTxt
 !          CHARACTER(2) :: WEIGHTtxt
 
           WRITE(K0txt,'(i2.2)') K0_index
           WRITE(E0txt,'(i2.2)') E0_index
           WRITE(IGtxt,'(i2.2)') iguess
-          WRITE(optimizationIterTxt,'(i3.3)') optimizationIter
+          WRITE(optimizationIterTxt,'(i4.4)') optimizationIter
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
 
           call createDirectoryIfNonExistent(ConstraintDir//"tau-data")

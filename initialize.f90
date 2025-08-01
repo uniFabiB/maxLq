@@ -7,6 +7,13 @@ SUBROUTINE initialize
 
    INTEGER :: i,j,k
 
+   C_n(1) = RESOL
+   C_n(2) = RESOL
+   C_n(3) = RESOL
+   n(1) = RESOL
+   n(2) = RESOL
+   n(3) = RESOL
+   
    C_local_alloc = fftw_mpi_local_size_3d(C_n(3), C_n(2), C_n(1), MPI_COMM_WORLD, C_local_N, C_local_k_offset)   ! Newly Added March 18, 2017, use "C_..."
    local_N = int( C_local_N )
    local_k_offset = int( C_local_k_offset )
@@ -38,9 +45,9 @@ SUBROUTINE initialize
 
    DO i = 0,n(2)-1
       IF (i <= n(2)/2) THEN
-      K2(i+1) = 2.0_pr*PI*REAL(i,pr)
+         K2(i+1) = 2.0_pr*PI*REAL(i,pr)
       ELSE
-      K2(i+1) = 2.0_pr*PI*REAL(i-n(2),pr)
+         K2(i+1) = 2.0_pr*PI*REAL(i-n(2),pr)
       END IF
    END DO
 
@@ -52,9 +59,18 @@ SUBROUTINE initialize
       END IF
    END DO
 
+   if(use_e_u_auto_for_q_less_4) then
+      if(lebesgueQ<4.0_pr-MACH_EPSILON) then
+         use_e_u_instead_of_uqMinus4 = .true.
+      else
+         use_e_u_instead_of_uqMinus4 = .false.
+      end if
+   end if
+   
+
 
    !IF (n(1)<256) THEN     !todo temporarily changed on 16 may 2025 to avoid an error of u1 being not allocatable in save_field_R3toR3_ncdf : ALLOCATE( u1(1:n(1),1:n(2),1:n(3)) ) 
-   IF (n(1)<64) THEN
+   IF (n(1)<16) THEN
       parallel_data = .FALSE.
    ELSE
       parallel_data = .TRUE.

@@ -8,44 +8,49 @@ MODULE global_variables
   real(pr), parameter :: visc = 1.0_pr
   
   !opt params!
-  INTEGER, PARAMETER :: MAX_ITER = 1000                   !original 1000 ! Maximal iterations of maxdEdt
-  INTEGER, PARAMETER :: MAX_ITER_CONSTR = 100
+  INTEGER, PARAMETER :: MAX_ITER = 9999                   !original 1000 ! Maximal iterations of maxdEdt
+  integer, parameter :: banachGradIterMax = 999
   REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-7_pr            !original 1.0e-8_pr
+  REAL(pr), PARAMETER :: banachIterTol = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
   integer, parameter :: resol = 64
   real(pr), save :: lambda1 = 0.1_pr
+  logical :: useBanachGradient = .true.                   ! banach gradient (true) or hilbert gradient (false)
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
   integer :: resetMomentumTermEveryXiterations = 25                 ! <1 = never
 
   logical :: normalizeDirection = .true.
-  logical :: use_e_u_instead_of_uqMinus4 = .true.
+  logical :: use_e_u_auto_for_q_less_4 = .true.           ! automatically use e_u instead of u for q<4 and otherwise don't use e_u
+  logical :: use_e_u_instead_of_uqMinus4 = .false.        ! calc |u|^{q-2} |e_u cdot partial_k u|^2 instead of |u|^{q-4} |u cdot partial_k u|^2 to avoid dividing by 0 
+  logical :: dealiase_if_mult_by_e_u = .true.             ! dealiase even if just multiplied by e_u (seems to be wrong )
 
   !data params!
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
-  CHARACTER(len=*), parameter :: inputDir = "/home/fabianbl/projects/rrg-bprotas/fabianbl/prog/input/"
+  CHARACTER(len=*), parameter :: ncDir = HomeDir//"ncFiles/"
+  CHARACTER(len=*), parameter :: inputDir = "/home/fabianbl/projects/def-bprotas/fabianbl/prog/input/" !"./input/" TODO MAKE LIST AND CHECK IF EXISTS ON THIS SERVER
   CHARACTER(len=:), allocatable :: ConstraintDir
   CHARACTER(len=:), allocatable :: loadTempFunctionName
 
 
   !debug params!
-  logical :: verboseOptimization = .false.                 ! verbosely output stuff to terminal
-  logical :: tauDebugToConsole = .true.                 ! verbosely output stuff to terminal     
+  logical :: verboseOptimization = .false.                  ! verbosely output stuff to terminal
+  logical :: tauDebugToConsole = .true.                     ! verbosely output stuff to terminal     
   real(pr) :: checkDivergenceTolerance = 1.0e-15            ! tolerance to still be considered divergence free
   real(pr) :: checkNormalTolerance = 1.0e-12                ! tolerance to still be considered orthogonal
-  real(pr) :: checkAverageTolerance = 1.0e-5                ! tolerance such that velocity < checkAverageTolerance*constraintB 
+  real(pr) :: checkAverageTolerance = 1.0e-3                ! tolerance such that velocity < checkAverageTolerance*constraintB 
                                                                         !is still be considered average free     
 
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
-  LOGICAL :: mnbra_calcSaveAllJvalues = .true.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
-  integer :: save_scalarFieldsEveryXiteration = 10           ! <1 for never
+  LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
+  integer :: save_scalarFieldsEveryXiteration = 100          ! <1 for never
   integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
-  integer :: save_spectraEveryXiteration = 10                 ! <1 for never
+  integer :: save_spectraEveryXiteration = 100               ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
-  integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
+  integer :: dividingByZeroWarnings = 10                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.
   LOGICAL :: save_diag_Constr = .true.
   LOGICAL :: save_data_Constr = .true.
@@ -65,16 +70,19 @@ MODULE global_variables
   real(pr), dimension(:,:), allocatable :: optimizationResultList
   real(pr), dimension(:), allocatable :: B_list
   integer :: B_list_iterator
-  character(2) :: bIterTxt
+  character(3) :: bIterTxt
   character(7) :: Btxt
   integer :: bIterOffset
-  character(3) :: optimizationIterationTxt = "nan"
+  integer :: optimizationIterOffset
+  character(4) :: optimizationIterationTxt = "nan"
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
   REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec
 
   real(pr) :: viscCoefficient = 1.0_pr                                          ! for debugging to turn on and off the viscocity/pressure terms
   real(pr) :: pressureCoefficient = 1.0_pr                                      ! for debugging to turn on and off the viscocity/pressure terms
+  real(pr) :: BanachGradientWCoefficient = 1.0_pr                               ! for debugging to turn on and off the derivative in W^{1,s} Banach gradient
+  real(pr) :: BanachGradientLCoefficient = 1.0_pr                               ! for debugging to turn on and off the 0-th order in W^{1,s} Banach gradient
   real(pr), save :: constraintB                                                 ! constraint size, i.e. ||u||_q = B
   
   !========================================================================== 

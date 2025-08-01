@@ -14,8 +14,9 @@ module optimization
 
          REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: uvec0, gradJ0, gradJ1, gradJproj, gradJused0, gradJused1, diff_gradJ, unit_normal, d0, d1, vecTransported_GradJused0, vecTransported_d0, normalL2, normalHs
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
+         logical :: optimizationSuccessful
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, orderS, gradJ0norm
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, HildertOrderS, gradJ0norm
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
@@ -74,8 +75,12 @@ module optimization
          J0 = eval_J(Uvec, "maxdLqdt")
          J1 = 0.0_pr
          deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
-         iter = 0
-         write(optimizationIterationTxt, '(i3.3)') iter
+         if(B_list_iterator==bIterOffset+1) then
+            iter = optimizationIterOffset
+         else
+            iter = 0
+         end if
+         write(optimizationIterationTxt, '(i4.4)') iter
          d0 = 0.0_pr
          gradJused0 = 0.0_pr
          vecTransported_GradJused0 = 0.0_pr
@@ -87,11 +92,12 @@ module optimization
          ! PRINT INITIAL VALUES
          !===============================
          if(rank==0) print*, iter, "iteration"
-         if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_v/(|J_v|+|J_n|)", "J_n/(|J_v|+|J_n|)"
+         if(rank==0) print '(7A16, A12, A7, A12, 2A16)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)"
          test = calc_global_Lq_norm(Uvec)
          testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
          testVec(1) = abs(testVec(2)) + abs(testVec(3))
-         if(rank==0) print '(A20, 8ES20.8, 2F20.8)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+         if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+
 
          IF (save_diag_Optim) THEN
             IF (rank==0) THEN
@@ -110,7 +116,7 @@ module optimization
 
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
-            write(optimizationIterationTxt, '(i3.3)') iter
+            write(optimizationIterationTxt, '(i4.4)') iter
             if(rank==0) print*, iter, "iteration"
 
 
@@ -119,8 +125,14 @@ module optimization
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "calculating gradient"
             gradJ1 = GradL2ForLq(Uvec)
-            orderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
-            CALL SobolevGradient(gradJ1, orderS)
+            if(useBanachGradient) then
+               if(rank==0) print*, "todo change back to L2 gradient here"
+               gradJ1 = BanachGradient(uvec)
+            else
+               hildertOrderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
+               call HilbertGradient(gradJ1, hildertOrderS)
+            end if
+            
             call divAvg_free(gradJ1)
 
             !======================================================
@@ -132,7 +144,11 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "calculating normal of tangent"
             normalL2 = calcConstraintDerivativeL2(Uvec)     ! normal = q |u|^{q-2} u = nabla( ||u||_q^q )
             normalHs = normalL2
-            call sobolevGradient(normalHs, orderS)
+            if(useBanachGradient) then
+               normalHs = BanachGradient(normalHs)
+            else
+               call HilbertGradient(normalHs, hildertOrderS)
+            end if            
             !testVec = calc0thFourierModes(normalHs)
             !call divAvg_free(normalHs)
             !testVec = calc0thFourierModes(normalHs)
@@ -193,7 +209,7 @@ module optimization
                end if
 
                if(modulo(iter,resetMomentumTermEveryXiterations) == 0) then
-                  if(rank==0) print*, achar(9), "RESETTING MOMENTUM TERM"
+                  if(rank==0) print*, achar(9), "resetting momentum term"
                   beta = 0.0_pr
                end if
                
@@ -355,11 +371,11 @@ module optimization
             !===============================
             ! PRINT RESULTS
             !===============================
-            if(rank==0) print '(11A20)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "||u||_q", "J_v/(|J_v|+|J_n|)", "J_n/(|J_v|+|J_n|)"
+            if(rank==0) print '(7A16, A12, A7, A12, 2A16)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)"
             test = calc_global_Lq_norm(Uvec)
             testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
             testVec(1) = abs(testVec(2)) + abs(testVec(3))
-            if(rank==0) print '(A20, 8ES20.8, 2F20.8)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
 
 
             !===============================
@@ -380,6 +396,7 @@ module optimization
 
 
          if(iter<MAX_ITER .and. while_flag<1) then
+            optimizationSuccessful = .true.
             if(rank==0) then
                print*, "optimization terminated successful after", iter, "iterations"
                print*, " "
@@ -389,6 +406,7 @@ module optimization
                CALL kappa_test(uvec0, d1, .true.,"maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
             end if
          else
+            optimizationSuccessful = .false.
             if(rank==0) then
                print*, "optimization terminated unsuccessful", iter, MAX_ITER
             end if
@@ -412,8 +430,8 @@ module optimization
 
          !===============================
          ! save results
-         !===============================    
-         call save_to_optimizationResultList(constraintB, J1, iter)
+         !===============================
+         call save_to_optimizationResultList(constraintB, J1, iter, optimizationSuccessful)
          
          deallocate(uvec0)
          deallocate(gradJ0)
@@ -468,6 +486,64 @@ module optimization
       END SELECT
       deallocate(aux1)
    END FUNCTION eval_J
+
+
+
+
+   !=================================================
+   ! iteratively calculate the banach gradient by solving
+   ! |v|^{s-2} ((s-2)e_{v_l} e_{v_m} + delta_lm) v_l^{k+1}
+   !        - partial_i(|nabla v|^{s-2} ((s-2) e_{partial_i v_m} e_{partial_j v_l} + delta_ij delta_lm) partial_j v_l^{k+1})
+   !        = s |v|^{s-2} v_m - s partial_i(|nabla v|^{s-2} partial_i v_m) - 1/lambda nabla rho + 1/lambda L2Grad
+   ! and
+   ! Delta rho = lambda nabla cdot (|v^{k+1}|^{s-2} v^{k+1} - partial_i(|nabla v^{k+1}|^{s-2} partial_i v^{k+1})
+   ! in an alternating fashion
+   !=================================================
+   function banachGradient(l2Grad) RESULT (v)
+      USE global_variables
+      USE function_ops
+      USE mpi
+      IMPLICIT NONE
+
+      REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: l2Grad
+      real(pr) :: lambda
+      real(pr) :: s                    ! s = 3q/(q+1)
+      real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: v, v_old
+      real(pr), dimension(1:n(1),1:n(2),1:local_N) :: rho
+      real(pr) :: tau         ! step size
+      integer :: bgIter
+      real(pr) :: residual = 99999.9_pr
+      real(pr) :: glob_norm_v_sq
+
+
+      s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
+
+      rho = 0.0_pr
+      lambda = 1.0_pr
+      v_old = l2Grad
+      tau = 1.0_pr
+
+      do while (bgIter <= banachGradIterMax .and. residual>banachIterTol)
+         bgIter = bgIter + 1
+
+         !if(tau>0.01_pr) then
+         !   tau = 0.9_pr*tau
+         !else
+         !   tau = 0.01_pr
+         !end if
+         v = BanachGradientIterationOld(l2Grad, v_old, lambda, rho, tau)
+         rho = BanachGradientCalcRho(v, lambda)
+
+
+         residual = global_summed_field_inner_product(v-v_old,v-v_old,"L2")/global_summed_field_inner_product(v,v,"L2")
+         glob_norm_v_sq = global_summed_field_inner_product(v,v,"L2")
+         if(rank==0) print*, "banach gradient", " iter", bgIter, "||v-v_old||_2^2/||v||_2^2", residual, "||v||_2^2", glob_norm_v_sq
+
+         v_old = v
+
+      end do
+      
+   END FUNCTION banachGradient
 
    !==================================================
    ! BRACKET THE LOCATION OF OPTIMAL TAU
@@ -935,7 +1011,7 @@ module optimization
       !!! tries to find a factor c such that c*gradJ is the acutal gradient
       !!! can be used for d = projected( grad J ) + beta vector(transport)
       !!! since this is probably not normalized in the correct way for the kappa test
-      iAdjMin = 0
+      iAdjMin = 1
       adjAvgSize = 4
       fracAdjMin = 9999
       if(rank==0) print*, ""

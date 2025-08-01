@@ -28,9 +28,11 @@ MODULE global_variables
   logical :: dealiase_if_mult_by_e_u = .true.             ! dealiase even if just multiplied by e_u (seems to be wrong )
 
   !data params!
+
+  CHARACTER(len=:), allocatable :: hostName
   CHARACTER(len=*), parameter :: HomeDir = "./output/"
   CHARACTER(len=*), parameter :: ncDir = HomeDir//"ncFiles/"
-  CHARACTER(len=*), parameter :: inputDir = "/home/fabianbl/projects/def-bprotas/fabianbl/prog/input/" !"./input/" TODO MAKE LIST AND CHECK IF EXISTS ON THIS SERVER
+  CHARACTER(len=:), allocatable :: inputDir                 ! depends on the server -> see initialize
   CHARACTER(len=:), allocatable :: ConstraintDir
   CHARACTER(len=:), allocatable :: loadTempFunctionName
 

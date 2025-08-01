@@ -5,8 +5,47 @@ SUBROUTINE initialize
    IMPLICIT NONE
    INCLUDE "fftw3-mpi.f03"             ! Needed, as there is a fftw_mpi_local_size_3d command below
 
-   INTEGER :: i,j,k
+   CHARACTER(len=100) :: tempHostName
+   logical :: hostFound = .false.
+   INTEGER :: i, myIndex
 
+
+
+
+   call hostnm(tempHostName)
+   hostName = trim(tempHostName)
+   myIndex = index(string=hostName,substring="gra")
+   if(myIndex==1) then
+      if(rank==0) print*, "hostName ", hostName, " -> ", "graham"
+      inputDir = "/home/fabianbl/projects/rrg-bprotas/fabianbl/prog/input/"
+      if(rank==0) print*, achar(9), "using input dir ", inputDir
+      hostFound = .true.
+   end if
+
+   myIndex = index(string=hostName,substring=".nibi.sharcnet")
+   if(myIndex>0) then
+      if(hostFound .and. rank==0) print*, "ERROR: HOSTNAME FOUND NIBI BUT PREVIOUSLY FOUND ANOTHER ONE"
+      if(rank==0) print*, "hostName ", hostName, " -> ", "nibi"
+      inputDir = "/home/fabianbl/projects/rrg-bprotas/fabianbl/prog/input/"
+      if(rank==0) print*, achar(9), "using input dir ", inputDir
+      hostFound = .true.
+   end if
+
+   myIndex = index(string=hostName,substring=".int.cedar.computecanada.ca")
+   if(myIndex>0) then
+      if(hostFound .and. rank==0) print*, "ERROR: HOSTNAME FOUND CEDAR BUT PREVIOUSLY FOUND ANOTHER ONE"
+      if(rank==0) print*, "hostName ", hostName, " -> ", "cedar"
+      inputDir = "/home/fabianbl/projects/def-bprotas/fabianbl/prog/input/"
+      if(rank==0) print*, achar(9), "using input dir ", inputDir
+      hostFound = .true.      
+   end if
+
+   if(.not. hostFound) then
+      if(rank==0) print*, "WARNING: NO HOSTNAME COULD BE ATTRIBUTED"
+      inputDir = "/home/fabianbl/projects/def-bprotas/fabianbl/prog/input/"
+      if(rank==0) print*, achar(9), "using standard input directory ", inputDir
+   end if
+   
    C_n(1) = RESOL
    C_n(2) = RESOL
    C_n(3) = RESOL

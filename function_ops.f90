@@ -26,6 +26,7 @@ module function_ops
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: Ux_hat, Uy_hat, Uz_hat
          COMPLEX(pr), DIMENSION(:,:,:), ALLOCATABLE :: aux, faux
          real(pr), dimension(:,:,:,:), allocatable :: auxVec
+         logical :: loadSuccessful
          
          complex(pr), dimension(:,:,:,:), allocatable :: auxVec2, fauxVec2
          real(pr) :: norm_k
@@ -42,29 +43,29 @@ module function_ops
          SELECT CASE (iguess)
             case (0)
                filename = inputDir//"FRT_N256E500T017_Uvec_fwdTE0220.nc"
-               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz", loadSuccessful)
                !x = 2.0_pr*PI*REAL(n(1),pr)/16.0_pr     ! wave number from which on to cut fourier modes
                !call divAvg_free(uvec)
 
             case (1)
                allocate( auxVec(1:n(1),1:n(2),1:local_N,1:3) )
 
-               call kappa_test_pert(uvec,"sine",4.0_pr,2.0_pr,5.0_pr)
-               call kappa_test_pert(auxvec,"sine",2.0_pr,3.0_pr,1.0_pr)
+               call kappa_test_pert(uvec,"sine",4.0_pr,2.0_pr,5.0_pr, loadSuccessful)
+               call kappa_test_pert(auxvec,"sine",2.0_pr,3.0_pr,1.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",7.0_pr,2.0_pr,6.0_pr)
+               call kappa_test_pert(auxvec,"sine",7.0_pr,2.0_pr,6.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",8.0_pr,1.0_pr,2.0_pr)
+               call kappa_test_pert(auxvec,"sine",8.0_pr,1.0_pr,2.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",1.0_pr,9.0_pr,0.0_pr)
+               call kappa_test_pert(auxvec,"sine",1.0_pr,9.0_pr,0.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",5.0_pr,7.0_pr,2.0_pr)
+               call kappa_test_pert(auxvec,"sine",5.0_pr,7.0_pr,2.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",1.0_pr,2.0_pr,2.0_pr)
+               call kappa_test_pert(auxvec,"sine",1.0_pr,2.0_pr,2.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",2.0_pr,4.0_pr,3.0_pr)
+               call kappa_test_pert(auxvec,"sine",2.0_pr,4.0_pr,3.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
-               call kappa_test_pert(auxvec,"sine",7.0_pr,2.0_pr,3.0_pr)
+               call kappa_test_pert(auxvec,"sine",7.0_pr,2.0_pr,3.0_pr, loadSuccessful)
                uvec(:,:,:,:) = uvec(:,:,:,:) + auxvec(:,:,:,:)
                call divAvg_free(uvec)
                
@@ -72,28 +73,28 @@ module function_ops
 
 
             case (2)
-               call kappa_test_pert(uvec, "load-random-a", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-a", 0.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
 
             case (3)
-               call kappa_test_pert(uvec, "load-random-smooth-a", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-smooth-a", 0.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
                
             case (4)
-               call kappa_test_pert(uvec, "load-random-exp-a", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-exp-a", 0.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
             
             case (5)
-               call kappa_test_pert(uvec, "load-random-poly-a", -3.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-random-poly-a", -3.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
 
             case (6)
-               call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "load-k-random-a", 1000.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
 
             case (7)
-               call kappa_test_pert(uvec, "save-random", 0.0_pr, 0.0_pr, 0.0_pr)
+               call kappa_test_pert(uvec, "save-random", 0.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
 
             CASE (9)                                 ! Can be used when recover from the terminated code
                !filename = "/work/yund0050/maxdEdtHeli_100_06/3_005_WEIGHT100_N0256_E37_IG10_DoubleResolution_u0.nc"                           ! Added on March 24, 2017, only work once
                !filename = inputDir//"u_result_B32_0512.nc"
                filename = inputDir//loadTempFunctionName
-               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz", loadSuccessful)
                
             CASE (50)                                   ! Arnold-Beltrami-Childress (ABC) flow
                DO kk=1, local_N
@@ -176,7 +177,7 @@ module function_ops
                         !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
                         !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
                   filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz", loadSuccessful)
 
                   Ux = Uvec(:,:,:,1)
                   !CALL dealiasing(Ux) ! commented out by fb
@@ -237,7 +238,7 @@ module function_ops
                         !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
                         !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
                   filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz", loadSuccessful)
 
                   Ux = Uvec(:,:,:,1)
                   !CALL dealiasing(Ux) ! commented out by fb
@@ -298,7 +299,7 @@ module function_ops
                         !                  WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
                         !                  filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdtHeli_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
                   filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"                           ! Newly added on May 8, 2017
-                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz")
+                  CALL read_field_R3toR3_ncdf(Uvec, filename, "Ux", "Uy", "Uz", loadSuccessful)
 
                   Ux = Uvec(:,:,:,1)
                   !CALL dealiasing(Ux) ! commented out by fb
@@ -610,7 +611,7 @@ module function_ops
       !===================================
       !  PERTURBATION FOR KAPPA TEST
       !===================================
-      SUBROUTINE kappa_test_pert(phi_pert, mytype, m1, m2, m3)
+      SUBROUTINE kappa_test_pert(phi_pert, mytype, m1, m2, m3, successful)
          USE global_variables
          USE fftwfunction
          use data_ops
@@ -628,6 +629,10 @@ module function_ops
          INTEGER :: ii, jj, kk, ll
          real(pr), dimension(1:3) :: l2NormTestLoc, l2NormTestGlob
          REAL(pr) :: X, Y, Z, ampl, norm_K, normalization_const
+         logical :: loadSuccessful
+         logical, intent(out) :: successful
+
+         successful = .true.
 
 
 
@@ -647,7 +652,8 @@ module function_ops
 
             case ("load-te0080")
                filename = inputDir//"FRT_N256E500T017_Uvec_fwdTE0080.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
 
 
             CASE ("sine")
@@ -683,17 +689,21 @@ module function_ops
 
             case ("load-random-a")
                filename = inputDir//"n"//auxStr//"_random_a.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
                call divAvg_free(phi_pert)
 
             case ("load-random-b")
                filename = inputDir//"n"//auxStr//"_random_b.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
                call divAvg_free(phi_pert)
 
             CASE ("load-random-smooth-a")
                filename = inputDir//"n"//auxStr//"_random_a.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                do kk=1,3
                   call dealias_scalar(phi_pert(:,:,:,kk), 20.0_pr)
                end do
@@ -701,7 +711,9 @@ module function_ops
                
             CASE ("load-k-random-a")
                filename = inputDir//"n"//auxStr//"_random_a.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -727,7 +739,9 @@ module function_ops
                
             CASE ("load-k-random-b")
                filename = inputDir//"n"//auxStr//"_random_b.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -752,7 +766,9 @@ module function_ops
                
             CASE ("load-random-poly-a")
                filename = inputDir//"n"//auxStr//"_random_a.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -775,9 +791,62 @@ module function_ops
                phi_pert = real(aux,pr)
                call divAvg_free(phi_pert)
                
+            CASE ("create-random-poly-b")
+               call random_number(phi_pert)
+               phi_pert = 2.0_pr*phi_pert-1.0_pr
+               aux = dcmplx(phi_pert, 0.0_pr)
+
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+
+               CALL fftbwdv(faux, aux)
+
+               phi_pert = real(aux,pr)
+               call divAvg_free(phi_pert)
+
+               ! normalization
+               normalization_const = 100.0_pr*global_summed_field_inner_product(phi_pert,phi_pert,"L2")
+
+               phi_pert(:,:,:,:) = phi_pert(:,:,:,:)/normalization_const
+
+               aux = dcmplx(phi_pert, 0.0_pr)		
+               CALL fftfwdv(aux, faux)
+               DO kk=1, local_N
+                  DO jj=1, n(2)
+                     DO ii=1, n(1)
+                        norm_K = SQRT( K1(ii)**2 + K2(jj)**2 + K3(kk+local_k_offset)**2 )
+                        If (norm_k < MACH_EPSILON) then
+                           do ll=1,3
+                              faux(ii,jj,kk,ll) = 0.0_pr
+                           end do
+                        else
+                           do ll=1,3                        	
+                              faux(ii,jj,kk,ll) = faux(ii,jj,kk,ll)*(10.0_pr**m2)*(norm_K/(real(n(1),pr)/4.0_pr))**(m1)
+                           end do
+                        END IF
+                     END DO
+                  END DO
+               END DO
+               CALL fftbwdv(faux, aux)
+               phi_pert = real(aux,pr)
+               call divAvg_free(phi_pert)
+
             CASE ("load-random-poly-b")
                filename = inputDir//"n"//auxStr//"_random_b.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -802,7 +871,9 @@ module function_ops
                
             CASE ("load-random-exp-a")
                filename = inputDir//"n"//auxStr//"_random_a.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -827,7 +898,9 @@ module function_ops
                
             CASE ("load-random-exp-b")
                filename = inputDir//"n"//auxStr//"_random_b.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                aux = dcmplx(phi_pert, 0.0_pr)		
                CALL fftfwdv(aux, faux)
                DO kk=1, local_N
@@ -852,7 +925,9 @@ module function_ops
 
             CASE ("load-random-smooth-b")
                filename = inputDir//"n"//auxStr//"_random_b.nc"
-               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz")
+               CALL read_field_R3toR3_ncdf(phi_pert, filename, "Ux", "Uy", "Uz", loadSuccessful)
+               successful = loadSuccessful
+               if(.not.loadSuccessful) phi_pert = 0.0_pr
                do kk=1,3
                   call dealias_scalar(phi_pert(:,:,:,kk), 20.0_pr)
                end do
@@ -3339,7 +3414,8 @@ module function_ops
 
 
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: rhs
-         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: matrix_f
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: matrix_f, test_matrix
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3) :: partial_sG_sjml
          real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3) :: tensor_g
          real(pr) :: norm ! to normalize
 
@@ -3349,8 +3425,8 @@ module function_ops
          real(pr), dimension(:,:,:,:), allocatable :: tempVec
          real(pr), dimension(:,:,:,:,:,:), allocatable :: temp_tensor3
          
-         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, full_matrix, full_matrix_inverted
-         complex(pr), dimension(:,:,:,:), allocatable :: temp_vector
+         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, matrix_1, matrix_1_inverted
+         complex(pr), dimension(:,:,:,:), allocatable :: temp_vector, ik_vector
          complex(pr), dimension(:,:), allocatable :: basis_function_x, basis_function_y, basis_function_z ! each 1/n_j e^{ik_j x_j) to have 3*res^2 instead of res^6 arrays
 
          integer :: ii, jj, kk, ll, mm
@@ -3412,6 +3488,7 @@ module function_ops
                      tempVec(:,:,:,:) = tensor_g(:,:,:,:,jj,kk,ll)
                      call divergence(tempVec,tempSca)
                      temp_tensor3(:,:,:,jj,kk,ll) = tempSca       ! temp_tensor3(:,:,:,jj,kk,ll) = partial_i g_ijkl
+                     partial_sG_sjml(:,:,:,jj,kk,ll) = tempSca
                end do
             end do
          end do
@@ -3432,6 +3509,8 @@ module function_ops
             END DO
          END DO
 
+         ik_vector = temp_vector
+
          ! tempmatrix_kl = i partial_s g_sjkl k_j
          allocate(temp_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
          temp_matrix = 0.0_pr
@@ -3445,9 +3524,9 @@ module function_ops
          end do
 
 
-         allocate(full_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
-         ! full_matrix = f_lm - i partial_s g_sjml k_j + ...(later)...
-         full_matrix(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient * temp_matrix(:,:,:,:,:)
+         allocate(matrix_1(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         ! matrix_1 = f_lm - i partial_s g_sjml k_j + ...(later)...
+         matrix_1(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient * temp_matrix(:,:,:,:,:)
 
 
          ! temp_tensor3_jml = g_sjml i k_s
@@ -3480,52 +3559,57 @@ module function_ops
          deallocate(temp_tensor3)
 
 
-         ! full_matrix = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
+         ! matrix_1 = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
          !             = f_lm - i partial_s g_sjml k_j - g_sjml (i k_s) (i k_j)
-         full_matrix(:,:,:,:,:) = full_matrix(:,:,:,:,:) - BanachGradientLCoefficient * temp_matrix(:,:,:,:,:)
+         matrix_1(:,:,:,:,:) = matrix_1(:,:,:,:,:) - BanachGradientLCoefficient * temp_matrix(:,:,:,:,:)
 
 
-         ! full_matrix(i,j,k) = (f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j)(x(i),y(j),z(k)) * phi(x(i),y(j),z(k), k_1(i), k_2(j), k_3(k))
-         ! i.e. evaluate the basis function at "diagonals", i.e. basis_func_x(ii, ii)
-         ! so we use the same indices for physical space as for fourier space
-         allocate(aux(1:n(1),1:n(2),1:local_N))
-         allocate(faux(1:n(1),1:n(2),1:local_N))
-         do mm=1,3
-            do ll=1,3
-               do kk=1,local_n
-                  do jj=1,n(2)
-                     do ii=1,n(1)
-                        full_matrix(ii,jj,kk,ll,mm) = full_matrix(ii,jj,kk,ll,mm)*basis_function_x(ii,ii)*basis_function_y(jj,jj)*basis_function_z(kk,kk)
-                     end do
-                  end do
-               end do
-               if(toDealias) then
-                  call fftfwd(full_matrix(:,:,:,ll,mm),faux)
-                  call dealiasing_cutoff_scalar_complex(faux, 2.0_pr)
-                  call fftbwd(faux, aux)
-                  full_matrix(:,:,:,ll,mm) = aux(:,:,:)
-               end if
-            end do
-         end do
-         deallocate(aux)
-         deallocate(faux)
+         temp_vector = solve_hugh_system(matrix_f, partial_sG_sjml, tensor_g, ik_vector, basis_function_x, basis_function_y, basis_function_z, dcmplx(rhs,0.0_pr))
          
 
-         allocate(full_matrix_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
-
-         full_matrix_inverted = matrixInversion3by3(full_matrix)
-
-         deallocate(full_matrix)
-
-         ! new = (fullmatrix)^{-1} rhs
-         temp_vector(:,:,:,:) = 0.0_pr
-         do ii=1,3
-            do jj=1,3
-               temp_vector(:,:,:,jj) = temp_vector(:,:,:,jj) + full_matrix_inverted(:,:,:,jj,ii)*rhs(:,:,:,ii)
-            end do
-         end do
-         deallocate(full_matrix_inverted)
-
+         !!! OLD WRONG !!!
+         !! matrix_1(i,j,k) = (f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j)(x(i),y(j),z(k)) * phi(x(i),y(j),z(k), k_1(i), k_2(j), k_3(k))
+         !! i.e. evaluate the basis function at "diagonals", i.e. basis_func_x(ii, ii)
+         !! so we use the same indices for physical space as for fourier space
+         !allocate(aux(1:n(1),1:n(2),1:local_N))
+         !allocate(faux(1:n(1),1:n(2),1:local_N))
+         !do mm=1,3
+         !   do ll=1,3
+         !      do kk=1,local_n
+         !         do jj=1,n(2)
+         !            do ii=1,n(1)
+         !               matrix_1(ii,jj,kk,ll,mm) = matrix_1(ii,jj,kk,ll,mm)*basis_function_x(ii,ii)*basis_function_y(jj,jj)*basis_function_z(kk,kk)
+         !            end do
+         !         end do
+         !      end do
+         !      if(toDealias) then
+         !         call fftfwd(matrix_1(:,:,:,ll,mm),faux)
+         !         call dealiasing_cutoff_scalar_complex(faux, 2.0_pr)
+         !         call fftbwd(faux, aux)
+         !         matrix_1(:,:,:,ll,mm) = aux(:,:,:)
+         !      end if
+         !   end do
+         !end do
+         !deallocate(aux)
+         !deallocate(faux)
+         !
+         !
+         !allocate(matrix_1_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         !
+         !matrix_1_inverted = matrixInversion3by3(matrix_1)
+         !
+         !deallocate(matrix_1)
+         !
+         !! new = (fullmatrix)^{-1} rhs
+         !temp_vector(:,:,:,:) = 0.0_pr
+         !do ii=1,3
+         !   do jj=1,3
+         !      temp_vector(:,:,:,jj) = temp_vector(:,:,:,jj) + matrix_1_inverted(:,:,:,jj,ii)*rhs(:,:,:,ii)
+         !   end do
+         !end do
+         !deallocate(matrix_1_inverted)
+         !
+         !!! OLD WRONG END !!!
 
          call mpi_barrier(mpi_comm_world, statinfo)
          
@@ -3541,11 +3625,307 @@ module function_ops
          v_new(:,:,:,:) = v_new(:,:,:,:)/norm
 
 
+         !!! testing !!!
+
+         allocate(tempvec(1:n(1),1:n(2),1:local_n,1:3))
+
+         temp_vector = 0.0_pr
+
+         do ii=1,3
+            call gradient(v_new(:,:,:,ii), tempVec)
+            matrix_1(:,:,:,ii,:) = tempVec(:,:,:,:)
+         end do
+
+         
+         temp_matrix = 0.0_pr
+         do ll=1,3
+            do kk=1,3
+               do jj=1,3
+                  do ii=1,3
+                     ! temp matrix(l,k) = g_(l,j,i,k)*partial_j u_i
+                     temp_matrix(:,:,:,ll,kk) = temp_matrix(:,:,:,ll,kk) + tensor_g(:,:,:,ll,jj,ii,kk)*matrix_1(:,:,:,ii,jj)
+                  end do
+               end do
+            end do
+         end do
+         
+
+         allocate(tempSca(1:n(1),1:n(2),1:local_n))
+
+         temp_vector = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               tempVec(:,:,:,jj) = temp_matrix(:,:,:,jj,ii)
+               call divergence(tempVec, tempSca)
+            end do
+            temp_vector(:,:,:,ii) = tempSca(:,:,:)
+         end do
+         tempVec = temp_vector
+
+         temp_vector = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               temp_vector(:,:,:,ii) = temp_vector(:,:,:,ii) + matrix_f(:,:,:,jj,ii)*v_new(:,:,:,jj)
+            end do
+         end do
+         
+         temp_vector = temp_vector+ tempVec
+         tempVec = temp_vector-rhs
+
+         if(rank==0) print*, "testing if iterationStep is correct: the following should be 0: ", achar(9), global_summed_field_inner_product(tempVec,tempVec,"L2") 
+
+         !!! end testing !!!
          
          deallocate(aux)
          deallocate(faux)
 
       end function BanachGradientIteration
+
+
+      function solve_hugh_system(matrix_A, partial_sG_sjml, g_sjml, ik_vector, phi_x, phi_y, phi_z, rhs) result(resultVec)
+         use global_variables
+         use fftwfunction
+         implicit none
+
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3):: matrix_1
+         
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3), intent(in) :: g_sjml
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3), intent(in) :: partial_sG_sjml
+         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3), intent(in) :: matrix_A
+         complex(pr), dimension(1:n(1),1:n(1)), intent(in) :: phi_x
+         complex(pr), dimension(1:n(2),1:n(2)), intent(in) :: phi_y
+         complex(pr), dimension(1:local_n,1:local_n), intent(in) :: phi_z
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: rhs, ik_vector
+         complex(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: resultVec
+
+         complex(pr), dimension(:,:,:,:,:,:,:,:), allocatable :: hugh_tensor   ! tensor(x,y,z,k_x,k_y,k_z,l,m)
+         complex(pr), dimension(:,:), allocatable :: hugh_matrix   ! tensor(xyzl,k_xk_yk_zlm)
+         complex(pr), dimension(:), allocatable :: hugh_rhs, hugh_x, useless_s
+         integer :: rank_out = 0
+         integer, dimension(:), allocatable :: useless_ipiv
+
+
+         !!! delete this afterwards !!!
+         complex(pr), dimension(:,:,:,:,:,:,:,:,:), allocatable :: k_sG_sjml
+         complex(pr), dimension(:,:,:,:,:,:,:,:), allocatable :: myMatrixMixedDerivatives, k_sk_jg_sjml
+         complex(pr), dimension(:,:,:,:), allocatable :: myTemp3p1d
+         complex(pr), dimension(:,:), allocatable :: myTemp2d, myTempHughMatrixBackup
+         complex(pr), dimension(:), allocatable :: myTemp1d, myTemp1d2, myTempHughRHSbackup
+         complex(pr) :: myTempCheckVar
+         real(pr) :: temptemp, temptemp2
+         !!! end delete his afterwards !!!
+
+         integer :: ii, jj, kk, ll, mm, nn, oo, pp, qq, rr, indL, indM
+         integer :: hughDim
+         integer :: info
+
+         hughDim = n(1)*n(2)*local_n*3
+         if(rank==0) print*, "hughDim = ", hughDim
+         allocate(hugh_matrix(1:hughDim,1:hughDim))
+         allocate(hugh_tensor(1:n(1),1:n(2),1:local_N,1:n(1),1:n(2),1:local_N,1:3,1:3))
+         
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) print*, "starting hugh matrix assembly ..."
+         call mpi_barrier(mpi_comm_world, statinfo)
+
+         allocate(k_sG_sjml(1:n(1),1:n(2),1:local_n,1:n(1),1:n(2),1:local_n,1:3,1:3,1:3))
+         k_sG_sjml = 0.0_pr
+         do rr=1,3
+            do qq=1,3
+               do pp=1,3
+                  do oo=1,3
+                     do nn=1,local_n
+                        do mm=1,n(2)
+                           do ll=1,n(1)
+                              do kk=1,local_n
+                                 do jj=1,n(2)
+                                    do ii=1,n(1)
+                                       k_sG_sjml(ii,jj,kk,ll,mm,nn,oo,pp,qq) = k_sG_sjml(ii,jj,kk,ll,mm,nn,oo,pp,qq) + ik_vector(ll,mm,nn,oo)*g_sjml(ii,jj,kk,oo,pp,qq,rr)
+                                    end do
+                                 end do
+                              end do
+                           end do
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do 
+         
+         allocate(myMatrixMixedDerivatives(1:n(1),1:n(2),1:local_n,1:n(1),1:n(2),1:local_n,1:3,1:3))
+         myMatrixMixedDerivatives = 0.0_pr
+         allocate(k_sk_jg_sjml(1:n(1),1:n(2),1:local_n,1:n(1),1:n(2),1:local_n,1:3,1:3))
+         k_sk_jg_sjml = 0.0_pr
+
+         do qq=1,3
+            do pp=1,3
+               do oo=1,3
+                  do nn=1,local_n
+                     do mm=1,n(2)
+                        do ll=1,n(1)
+                           do kk=1,local_n
+                              do jj=1,n(2)
+                                 do ii=1,n(1)
+                                    myMatrixMixedDerivatives(ii,jj,kk,ll,mm,nn,oo,pp) = myMatrixMixedDerivatives(ii,jj,kk,ll,mm,nn,oo,pp) + ik_vector(ll,mm,nn,qq)*partial_sG_sjml(ii,jj,kk,qq,oo,pp)
+                                    k_sk_jg_sjml(ii,jj,kk,ll,mm,nn,oo,pp) = k_sk_jg_sjml(ii,jj,kk,ll,mm,nn,oo,pp) + ik_vector(ll,mm,nn,qq)*k_sG_sjml(ii,jj,kk,ll,mm,nn,qq,oo,pp)
+                                 end do
+                              end do
+                           end do
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do
+
+
+         do pp=1,3
+            do oo=1,3
+               do nn=1,local_n
+                  do mm=1,n(2)
+                     do ll=1,n(1)
+                        do kk=1,local_n
+                           do jj=1,n(2)
+                              do ii=1,n(1)
+                                 indL = ii + (jj-1)*n(1) + (kk-1)*n(2)*n(1) + (oo-1)*local_n*n(2)*n(1)
+                                 indM = ll + (mm-1)*n(1) + (nn-1)*n(2)*n(1) + (pp-1)*local_n*n(2)*n(1)
+                                 hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp) = matrix_A(ii,jj,kk,oo,pp) + myMatrixMixedDerivatives(ii,jj,kk,ll,mm,nn,oo,pp) + k_sk_jg_sjml(ii,jj,kk,ll,mm,nn,oo,pp)
+                                 call random_number(temptemp)
+                                 call random_number(temptemp2)
+                                 hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp) = dcmplx(temptemp,temptemp2)
+                                 hugh_matrix(indL, indM) = hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp)
+                              end do
+                           end do
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do
+
+
+
+         allocate(myTempHughMatrixBackup(1:hughDim,1:hughDim))
+
+         myTempHughMatrixBackup = hugh_matrix
+
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) print*, achar(9), "done"
+         call mpi_barrier(mpi_comm_world, statinfo)
+         
+
+         allocate(hugh_rhs(1:hughDim))
+         allocate(hugh_x(1:hughDim))
+
+
+         do oo=1,3
+            do kk=1,local_n
+               do jj=1,n(2)
+                  do ii=1,n(1)
+                     indL = ii + (jj-1)*n(1) + (kk-1)*n(2)*n(1) + (oo-1)*local_n*n(2)*n(1)
+                     hugh_rhs(indL) = rhs(ii,jj,kk,oo)
+                  end do
+               end do
+            end do
+         end do
+
+         myTempHughRHSbackup = hugh_rhs
+
+
+         allocate(useless_ipiv(1:hughDim))
+
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) print*, "starting zgesv ..."
+         call mpi_barrier(mpi_comm_world, statinfo)
+         
+         call zgesv(hughDim, 1, hugh_matrix, hughDim, useless_ipiv, hugh_rhs, hughDim, info)
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) then
+            if (info==0) then
+               print*, achar(9), "done"
+            else
+               print*, achar(9), "done with errors! zgesv error info ", info
+            end if
+         end if
+         call mpi_barrier(mpi_comm_world, statinfo)
+
+         if(rank==0) print*, "starting vector reconstruction from hugh vector"
+
+         do oo=1,3
+            do kk=1,local_n
+               do jj=1,n(2)
+                  do ii=1,n(1)
+                     indL = ii + (jj-1)*n(1) + (kk-1)*n(2)*n(1) + (oo-1)*local_n*n(2)*n(1)
+                     resultVec(ii,jj,kk,oo) = hugh_rhs(indL)
+                  end do
+               end do
+            end do
+         end do
+
+         if(rank==0) print*, achar(9), "done"
+
+
+         !if(rank==0) print*, "starting hugh result testing ..."
+         allocate(myTemp1d(1:hughDim))
+         allocate(myTemp1d2(1:hughDim))
+         
+         !myTemp1d = 0.0_pr
+         !myTemp1d2 = 0.0_pr
+         !do jj=1,hughDim
+         !   do ii=1,hughDim
+         !      myTemp1d(ii) = myTemp1d(ii) + myTempHughMatrixBackup(ii,jj)*hugh_rhs(jj)
+         !      !myTemp1d2(ii) = myTemp1d2(ii) + hugh_matrix(ii,jj)+hugh_rhs(jj)
+         !   end do
+         !end do
+         !print*, achar(9), achar(9), "myTemp1d(ii) ", "myTempHughRHSbackup(ii)"
+         !do ii=1,3
+         !   print*, achar(9), achar(9), myTemp1d(ii), myTempHughRHSbackup(ii)
+         !end do
+         !print*, achar(9), achar(9), "maxval(abs(myTempHughMatrixBackup(:,:))) ", maxval(abs(myTempHughMatrixBackup(:,:))), ",   minval(abs(myTempHughMatrixBackup(:,:))) ", minval(abs(myTempHughMatrixBackup(:,:)))
+         !myTempCheckVar = maxval(abs(myTemp1d(:)-myTempHughRHSbackup(:)))
+         !print*, achar(9), achar(9), "Check L^infty error HughMatrix ", myTempCheckVar, " =0?"
+
+         
+         deallocate(myTemp1d)
+         deallocate(myTemp1d2)
+
+         allocate(myTemp3p1d(1:n(1),1:n(2),1:local_n,1:3))
+         
+         myTemp3p1d = 0.0_pr
+
+         do pp=1,3
+            do oo=1,3
+               do nn=1,local_n
+                  do mm=1,n(2)
+                     do ll=1,n(1)
+                        do kk=1,local_n
+                           do jj=1,n(2)
+                              do ii=1,n(1)
+                                 myTemp3p1d(ii,jj,kk,oo) = myTemp3p1d(ii,jj,kk,oo) + hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp)*resultVec(ll,mm,nn,pp)
+                              end do
+                           end do
+                        end do
+                     end do
+                  end do
+               end do
+            end do
+         end do
+
+
+         print*, achar(9), achar(9), "myTemp3p1d(ii,ii,ii,ii) ", "rhs(ii,ii,ii,ii) "
+         do ii=1,3
+            print*, achar(9), achar(9), myTemp3p1d(ii,ii,ii,ii), rhs(ii,ii,ii,ii)
+         end do
+         myTempCheckVar = maxval(abs(myTemp3p1d-rhs))
+         print*, achar(9), achar(9), "Check L^infty error matrix_ijkl ", myTempCheckVar, " =0?"
+
+         !if(rank==0) print*, achar(9), "hugh result testing done"
+         
+      end function solve_hugh_system
 
       !======================================================
       ! CALCULATE THE NEXT ITERATION OF THE BANACH GRADIENT
@@ -3577,7 +3957,7 @@ module function_ops
          real(pr), dimension(:,:,:,:), allocatable :: tempVec
          real(pr), dimension(:,:,:,:,:,:), allocatable :: temp_tensor3
          
-         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, full_matrix, full_matrix_inverted
+         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, matrix_1, matrix_1_inverted
          complex(pr), dimension(:,:,:,:), allocatable :: temp_vector
 
          integer :: ii, jj, kk, ll
@@ -3590,7 +3970,7 @@ module function_ops
 
          call BanachGradient_calcFmatrixGtensorRhs(l2Grad, v_old, lambda, rho, matrix_f, tensor_g, rhs, tau)
 
-         allocate(full_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         allocate(matrix_1(1:n(1),1:n(2),1:local_N,1:3,1:3))
          allocate(temp_tensor3(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3))
          allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
          allocate(tempSca(1:n(1),1:n(2),1:local_N))
@@ -3632,8 +4012,8 @@ module function_ops
             end do
          end do
 
-         ! full_matrix = f_lm - i partial_s g_sjml k_j + ...(later)...
-         full_matrix(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
+         ! matrix_1 = f_lm - i partial_s g_sjml k_j + ...(later)...
+         matrix_1(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
 
          ! temp_tensor3 = g_sjml (i k_s)
          temp_tensor3 = 0.0_pr
@@ -3661,15 +4041,15 @@ module function_ops
          deallocate(temp_tensor3)
 
 
-         ! full_matrix = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
+         ! matrix_1 = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
          !             = f_lm - partial_s g_sjml (i k_j) - g_sjml (i k_s) (i k_j)
-         full_matrix(:,:,:,:,:) = full_matrix(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
+         matrix_1(:,:,:,:,:) = matrix_1(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
 
-         allocate(full_matrix_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
+         allocate(matrix_1_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
 
-         full_matrix_inverted = matrixInversion3by3(full_matrix)
+         matrix_1_inverted = matrixInversion3by3(matrix_1)
 
-         deallocate(full_matrix)
+         deallocate(matrix_1)
 
          allocate(rhs_hat(1:n(1),1:n(2),1:local_N,1:3))
          allocate(aux(1:n(1),1:n(2),1:local_N))
@@ -3686,10 +4066,10 @@ module function_ops
          temp_vector(:,:,:,:) = 0.0_pr
          do ii=1,3
             do jj=1,3
-               temp_vector(:,:,:,ii) = temp_vector(:,:,:,ii) + full_matrix_inverted(:,:,:,ii,jj)*rhs_hat(:,:,:,jj)
+               temp_vector(:,:,:,ii) = temp_vector(:,:,:,ii) + matrix_1_inverted(:,:,:,ii,jj)*rhs_hat(:,:,:,jj)
             end do
          end do
-         deallocate(full_matrix_inverted)
+         deallocate(matrix_1_inverted)
          deallocate(rhs_hat)
 
          do ii=1,3

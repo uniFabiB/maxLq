@@ -1077,7 +1077,7 @@ MODULE data_ops
         !============================================================
         ! READ VORTICITY IN netCDF FORMAT
         !============================================================
-        SUBROUTINE read_field_R3toR3_ncdf(myfield, filename, Fx_txt, Fy_txt, Fz_txt)
+        SUBROUTINE read_field_R3toR3_ncdf(myfield, filename, Fx_txt, Fy_txt, Fz_txt, successful)
           USE global_variables
           USE netcdf
           IMPLICIT NONE
@@ -1092,8 +1092,11 @@ MODULE data_ops
           INTEGER :: x_dimid, y_dimid, z_dimid
           INTEGER :: fname_len, ii, nx_ncdf, ny_ncdf, nz_ncdf
           INTEGER, DIMENSION(1:3) :: starts, counts
+          logical, intent(out) :: successful
 
 
+
+          successful = .true.
           if(rank==0) print*, "loading file ", filename
 
           IF (parallel_data) THEN
@@ -1108,38 +1111,77 @@ MODULE data_ops
              DO ii=0,np-1
                 IF (rank == ii) THEN 
                    ncout = nf90_open(filename, NF90_NOWRITE, ncid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
 
                    ncout = nf90_inq_dimid(ncid, "x", x_dimid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_inq_dimid(ncid, "y", y_dimid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_inq_dimid(ncid, "z", z_dimid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
 
                    ncout = nf90_inquire_dimension(ncid, x_dimid, len = nx_ncdf)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_inquire_dimension(ncid, y_dimid, len = ny_ncdf)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_inquire_dimension(ncid, z_dimid, len = nz_ncdf)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
 
                    ncout = nf90_inq_varid(ncid, Fx_txt, fid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    myfield(:,:,:,1) = local_f
  
                    ncout = nf90_inq_varid(ncid, Fy_txt, fid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    myfield(:,:,:,2) = local_f
  
                    ncout = nf90_inq_varid(ncid, Fz_txt, fid)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                   if (ncout /= NF90_NOERR) then
+                     CALL ncdf_error_handle(ncout)
+                     successful = .false.
+                   end if
                    myfield(:,:,:,3) = local_f
  
                    ncout = nf90_close(ncid)
@@ -1159,19 +1201,37 @@ MODULE data_ops
 
              IF (rank == 0) THEN 
                 ncout = nf90_open(filename, NF90_NOWRITE, ncid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
 
                 ncout = nf90_inq_dimid(ncid, "x", x_dimid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_inq_dimid(ncid, "y", y_dimid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_inq_dimid(ncid, "z", z_dimid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
 
                 ncout = nf90_inq_varid(ncid, Fx_txt, fid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
              END IF
              CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
              CALL MPI_SCATTER(global_f, total_local_size, MPI_REAL8, local_f, total_local_size, MPI_REAL8, 0, MPI_COMM_WORLD, Statinfo)
@@ -1179,9 +1239,15 @@ MODULE data_ops
  
              IF (rank == 0) THEN 
                 ncout = nf90_inq_varid(ncid, Fy_txt, fid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
              END IF
              CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
              CALL MPI_SCATTER(global_f, total_local_size, MPI_REAL8, local_f, total_local_size, MPI_REAL8, 0, MPI_COMM_WORLD, Statinfo)
@@ -1189,9 +1255,15 @@ MODULE data_ops
  
              IF (rank == 0) THEN 
                 ncout = nf90_inq_varid(ncid, Fz_txt, fid)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                IF (ncout /= NF90_NOERR) CALL ncdf_error_handle(ncout)
+                if (ncout /= NF90_NOERR) then
+                  CALL ncdf_error_handle(ncout)
+                  successful = .false.
+                end if
                 ncout = nf90_close(ncid)
              END IF
              CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)

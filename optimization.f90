@@ -531,7 +531,7 @@ module optimization
          !else
          !   tau = 0.01_pr
          !end if
-         v = BanachGradientIterationOld(l2Grad, v_old, lambda, rho, tau)
+         v = BanachGradientIteration(l2Grad, v_old, lambda, rho, tau)
          rho = BanachGradientCalcRho(v, lambda)
 
 
@@ -928,7 +928,7 @@ module optimization
       CHARACTER(4) :: strLebesgueQ
       CHARACTER(3) :: tempStr
       character(50) :: phiPertText		! load random b/divfree sine/load te0080/...
-      
+      logical :: loadSuccessful
 
 
       complex(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: testRemoveAfterwards,testRemoveAfterwards2
@@ -967,9 +967,17 @@ module optimization
       !phiPertText = "load-random-smooth-b"
       !phiPertText = "save-random"	! generate new random field, stop afterwards and copy to it input folder
       !phiPertText = "load-te0080"
+      !phiPertText = "create-random-poly-b"
       phiPertText = trim(phiPertText)
-      call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr)
-      
+
+      call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
+      if(rank==0) print*, "kappa test loadSuccessful ", loadSuccessful
+      if(.not. loadSuccessful) then
+         if(rank==0) print*, "WARNING: could not load 'kappa_test_pert' ", trim(phiPertText), " generating new 'random poly' perturbation"
+         phiPertText = "create-random-poly-b"
+         phiPertText = trim(phiPertText)
+         call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)         
+      end if
 
       
 

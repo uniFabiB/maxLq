@@ -18,12 +18,13 @@ EDI_OPTS = -ffree-line-length-512
 OPTIONS = $(DEB_OPTS) $(EDI_OPTS)
 
 FFTW_DIR      = -I$(EBROOTFFTWMPI)/include
-FFTW_LIB      = -lfftw3_mpi -lfftw3 -lm		# Load FFTW3 Library
+FFTW_LIB      = -lfftw3_mpi -lfftw3 -lm
 NETCDF_DIR    = -I$(EBROOTNETCDFMINFORTRAN)/include
 NETCDF_LIB    = -lnetcdf -lnetcdff
+LAPACK_LIB    = -lflexiblas
 
 $(progName): $(OBJ)
-	$(compiler) $(OPTIONS) $(OBJ) $(BASIC_LIB) $(NETCDF_LIB) $(FFTW_LIB) -o $@
+	$(compiler) $(OPTIONS) $(OBJ) $(BASIC_LIB) $(NETCDF_LIB) $(FFTW_LIB) $(LAPACK_LIB) -o $@
 
 %.o: %.f90
 	$(compiler) -c $(OPTIONS) $(NETCDF_DIR) $(FFTW_DIR) $<

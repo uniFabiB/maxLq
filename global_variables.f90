@@ -14,7 +14,7 @@ MODULE global_variables
   REAL(pr), PARAMETER :: banachIterTol = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 64
+  integer, parameter :: resol = 12
   real(pr), save :: lambda1 = 0.1_pr
   logical :: useBanachGradient = .true.                   ! banach gradient (true) or hilbert gradient (false)
   logical :: useOrthogonalGradient = .true.
@@ -24,7 +24,7 @@ MODULE global_variables
 
   logical :: normalizeDirection = .true.
   logical :: use_e_u_auto_for_q_less_4 = .true.           ! automatically use e_u instead of u for q<4 and otherwise don't use e_u
-  logical :: use_e_u_instead_of_uqMinus4 = .false.        ! calc |u|^{q-2} |e_u cdot partial_k u|^2 instead of |u|^{q-4} |u cdot partial_k u|^2 to avoid dividing by 0 
+  logical :: use_e_u_instead_of_uqMinus4 = .true.        ! calc |u|^{q-2} |e_u cdot partial_k u|^2 instead of |u|^{q-4} |u cdot partial_k u|^2 to avoid dividing by 0 
   logical :: dealiase_if_mult_by_e_u = .true.             ! dealiase even if just multiplied by e_u (seems to be wrong )
 
   !data params!
@@ -52,7 +52,7 @@ MODULE global_variables
   integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
   integer :: save_spectraEveryXiteration = 100               ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
-  integer :: dividingByZeroWarnings = 10                    ! number of warnings when calculating |u|^{-...} where u=0 
+  integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.
   LOGICAL :: save_diag_Constr = .true.
   LOGICAL :: save_data_Constr = .true.

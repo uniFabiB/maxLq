@@ -57,12 +57,12 @@
       iguess = 50
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0724_q3_B012_iter0100.nc"
-         bIterOffset = 11                                ! should match the loaded iteration or 0 if new
+         loadTempFunctionName = "u_result_0804_q6_B013_iter8800.nc"
+         bIterOffset = 12                                ! should match the loaded iteration or 0 if new
                                                                      !0 = new optimization
                                                                      !8 if continuing u_result_B009_iter1500.nc
                                                                      !9 if u_result_B009_iterend.nc
-         optimizationIterOffset = 100                   ! should match the loaded iter or 0 if new
+         optimizationIterOffset = 800                   ! should match the loaded iter or 0 if new
                                                                      !0 = new optimization
                                                                      !1500 if continuing u_result_B009_iter1500.nc
                                                                      !0 if u_result_B009_iterend.nc

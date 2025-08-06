@@ -80,7 +80,7 @@ module optimization
          else
             iter = 0
          end if
-         write(optimizationIterationTxt, '(i4.4)') iter
+         write(optimizationIterationTxt, '(i5.5)') iter
          d0 = 0.0_pr
          gradJused0 = 0.0_pr
          vecTransported_GradJused0 = 0.0_pr
@@ -116,7 +116,7 @@ module optimization
 
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
-            write(optimizationIterationTxt, '(i4.4)') iter
+            write(optimizationIterationTxt, '(i5.5)') iter
             if(rank==0) print*, iter, "iteration"
 
 
@@ -248,7 +248,7 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "find tau"
 
             CALL optim_msg_handle(20) 
-            tau_brack = mnbrak(iter, "maxdLqdt", Uvec, d1, 0.0_pr, tau0, mnbrak_flag)
+            tau_brack = mnbrak("maxdLqdt", Uvec, d1, 0.0_pr, tau0, mnbrak_flag)
 
             IF (mnbrak_flag /= 0) THEN
                IF (rank==0) print*, "mnbrak error"
@@ -276,7 +276,7 @@ module optimization
 
             CALL optim_msg_handle(30)
 
-            tau1 = brent(iter, "maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
+            tau1 = brent("maxdLqdt", Uvec, d1, tau_brack)    ! I add the new variable iter
             if(tau1>tau_brack(2)) then
                if(rank==0 .and. tauDebugToConsole) print*, "warning! brent tau", tau1, "> tau brak(2)", tau_brack(2)
                if(tau1>2.0*tau_brack(2)) then
@@ -550,7 +550,7 @@ module optimization
    ! Press Teukolsky Vetterling Flannery - Numerical Recipes - 10.1 Initially Bracketing a Minimum
    !==================================================
 
-   FUNCTION mnbrak(optimizationIter, mysystem, phi, grad, tA0, tB0, myflag) RESULT (tau_brack)
+   FUNCTION mnbrak(mysystem, phi, grad, tA0, tB0, myflag) RESULT (tau_brack)
       USE global_variables
       USE data_ops
       USE function_ops
@@ -572,7 +572,7 @@ module optimization
       REAL(pr), PARAMETER :: GLIMIT = 10.0_pr
       REAL(pr), PARAMETER :: tMAX = 10.0_pr
       INTEGER, PARAMETER :: ITMAX = 100       ! maximal iterations in mnbrak method
-      INTEGER :: FuncEval, iter, optimizationIter
+      INTEGER :: FuncEval, iter
       LOGICAL :: saveLineMin
 
       saveLineMin = .TRUE.
@@ -585,13 +585,13 @@ module optimization
          tB = MAX(100.0*tB0, MACH_EPSILON)
          phi_bar = phi + tB*grad
          FB = eval_J(phi_bar, "LineMin")
-         IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, optimizationIter, mysystem, "replace")
+         IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, mysystem, "replace")
          DO WHILE (tB > 1.0e-5_pr) 
             tB = CGOLD*tB
             phi_bar = phi + tB*grad
             FB = eval_J(phi_bar, "LineMin")
             FuncEval = FuncEval+1
-            IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, optimizationIter, mysystem, "append")
+            IF (saveLineMin) CALL save_linemin_data(0.0_pr, tB, 0.0_pr, 0.0_pr, FB, 0.0_pr, -1, mysystem, "append")
          END DO
          tB = MAX(tB0, MACH_EPSILON)
       end if
@@ -612,14 +612,14 @@ module optimization
       FuncEval = FuncEval+1
 
 
-      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "replace")
+      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "replace")
 
       DO WHILE (FB > FA .AND. tB > MACH_EPSILON) 
          tB = CGOLD*tB
          phi_bar = phi + tB*grad
          FB = eval_J(phi_bar, "LineMin")
          FuncEval = FuncEval+1
-         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "append")
+         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
       END DO
 
       IF (tB .LE. MACH_EPSILON) THEN
@@ -632,7 +632,7 @@ module optimization
       FC = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
-      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "append")
+      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
 
       DO WHILE (FB>=FC .AND. iter<ITMAX)
          iter = iter+1
@@ -699,7 +699,7 @@ module optimization
          FB = FC
          FC = FP
         
-         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, "append")
+         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
  
       END DO
 
@@ -721,14 +721,13 @@ module optimization
    !============================================
    ! BRENT ALGORITHM FOR LINE OPTIMIZATION
    !============================================
-   FUNCTION brent(iteration, mysystem, phi, grad, tau_brack) RESULT (X)   ! I add new variable iteration on Feb. 2017
+   FUNCTION brent(mysystem, phi, grad, tau_brack) RESULT (X)   ! I add new variable iteration on Feb. 2017
       USE global_variables
       USE data_ops
       USE function_ops
       use mpi
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: iteration
       CHARACTER(len=*), INTENT(IN) :: mysystem
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi, grad
       REAL(pr), DIMENSION(1:2), INTENT(IN) :: tau_brack
@@ -752,7 +751,6 @@ module optimization
       WRITE(K0txt, '(i2.2)') K0_index
       WRITE(E0txt, '(i2.2)') E0_index
       WRITE(IGtxt, '(i2.2)') iguess
-      WRITE(itertxt, '(i4.4)') iteration
 
 
       ALLOCATE( phi_bar(1:n(1),1:n(2),1:local_N,1:3) )
@@ -769,7 +767,7 @@ module optimization
       call createDirectoryIfNonExistent(ConstraintDir//"tau-data")
 
       !filename = HomeDir//"/brent_info"//".dat"
-      filename = ConstraintDir//"tau-data/"//"brent-info-"//itertxt//".dat"
+      filename = ConstraintDir//"tau-data/"//"brent-info-"//optimizationIterationTxt//".dat"
       !filename = HomeDir//"/brent_info_maxdEdtHeli_Nu_E"//E0txt//"_IG"//IGtxt//"_brent_info.dat"
  
       phi_bar = phi + D*grad
@@ -971,7 +969,7 @@ module optimization
       phiPertText = trim(phiPertText)
 
       call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
-      if(rank==0) print*, "kappa test loadSuccessful ", loadSuccessful
+      !if(rank==0) print*, "kappa test loadSuccessful ", loadSuccessful
       if(.not. loadSuccessful) then
          if(rank==0) print*, "WARNING: could not load 'kappa_test_pert' ", trim(phiPertText), " generating new 'random poly' perturbation"
          phiPertText = "create-random-poly-b"

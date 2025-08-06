@@ -8,15 +8,15 @@ MODULE global_variables
   real(pr), parameter :: visc = 1.0_pr
   
   !opt params!
-  INTEGER, PARAMETER :: MAX_ITER = 9999                   !original 1000 ! Maximal iterations of maxdEdt
+  INTEGER, PARAMETER :: MAX_ITER = 99999                   !original 1000 ! Maximal iterations of maxdEdt
   integer, parameter :: banachGradIterMax = 999
   REAL(pr), PARAMETER :: OPTIM_TOL = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: banachIterTol = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 12
+  integer, parameter :: resol = 512
   real(pr), save :: lambda1 = 0.1_pr
-  logical :: useBanachGradient = .true.                   ! banach gradient (true) or hilbert gradient (false)
+  logical :: useBanachGradient = .false.                   ! banach gradient (true) or hilbert gradient (false)
   logical :: useOrthogonalGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
@@ -48,8 +48,8 @@ MODULE global_variables
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
-  integer :: save_scalarFieldsEveryXiteration = 100          ! <1 for never
-  integer :: save_uvecEveryXiteration = 100                  ! <1 for never    
+  integer :: save_uvecEveryXiteration = 100                  ! <1 for never
+  integer :: save_scalarFieldsEveryXiteration = -1          ! <1 for never
   integer :: save_spectraEveryXiteration = 100               ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
@@ -68,6 +68,7 @@ MODULE global_variables
   INTEGER, DIMENSION(3), SAVE :: n
   INTEGER, SAVE :: K0_index, E0_index, NU_index, iguess, ConsType
   REAL(pr), SAVE :: E0, K0, PI, dV, Kmax, lebesgueQ
+  character(len=:), allocatable :: lebesgueQText
   real(pr), dimension(:), allocatable, save :: lebesgueQlist
   real(pr), dimension(:,:), allocatable :: optimizationResultList
   real(pr), dimension(:), allocatable :: B_list
@@ -76,7 +77,7 @@ MODULE global_variables
   character(7) :: Btxt
   integer :: bIterOffset
   integer :: optimizationIterOffset
-  character(4) :: optimizationIterationTxt = "nan"
+  character(5) :: optimizationIterationTxt = "nan"
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
   REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec

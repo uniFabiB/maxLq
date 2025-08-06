@@ -87,6 +87,7 @@
       CALL initialize()
       call init_fft()
 
+      if(rank==0) print*, "lebesgueQtext_", lebesgueQText,"_"
 
       !=============================================
       !-- Initialize Data Folders

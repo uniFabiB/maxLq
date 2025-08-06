@@ -33,13 +33,13 @@ MODULE data_ops
 
           SELECT CASE (mysystem)
             case ("maxdLqdt")
-               filename = ncDir//"u0"//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u0"//"_q"//lebesgueQText//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
                CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             case ("maxdLqdt_result")
-               filename = ncDir//"u_result"//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u_result"//"_q"//lebesgueQText//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
@@ -194,7 +194,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields"//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields"//"-q"//lebesgueQText//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
@@ -769,13 +769,9 @@ MODULE data_ops
          integer :: iter
          logical, intent(in) :: optimizationSuccessful
          CHARACTER(200) :: filename
-
-         character(4) :: lebesgueQtxt
-         WRITE(lebesgueQtxt, '(F4.1)') lebesgueQ
-         if(lebesgueQ<10) lebesgueQtxt(:)="0"//lebesgueQtxt(2:)
          
 
-         filename = HomeDir//"q"//trim(lebesgueQtxt)//"-"//"results.dat"
+         filename = HomeDir//"results_q"//lebesgueQText//".dat"
 
          if(.not.optimizationSuccessful) iter = - iter
          
@@ -1111,74 +1107,74 @@ MODULE data_ops
              DO ii=0,np-1
                 IF (rank == ii) THEN 
                    ncout = nf90_open(filename, NF90_NOWRITE, ncid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
 
                    ncout = nf90_inq_dimid(ncid, "x", x_dimid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_inq_dimid(ncid, "y", y_dimid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_inq_dimid(ncid, "z", z_dimid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
 
                    ncout = nf90_inquire_dimension(ncid, x_dimid, len = nx_ncdf)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_inquire_dimension(ncid, y_dimid, len = ny_ncdf)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_inquire_dimension(ncid, z_dimid, len = nz_ncdf)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
 
                    ncout = nf90_inq_varid(ncid, Fx_txt, fid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    myfield(:,:,:,1) = local_f
  
                    ncout = nf90_inq_varid(ncid, Fy_txt, fid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    myfield(:,:,:,2) = local_f
  
                    ncout = nf90_inq_varid(ncid, Fz_txt, fid)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
                    ncout = nf90_get_var(ncid, fid, local_f, start = starts, count = counts)
-                   if (ncout /= NF90_NOERR) then
+                   if (ncout /= NF90_NOERR .and. successful) then
                      CALL ncdf_error_handle(ncout)
                      successful = .false.
                    end if
@@ -1201,34 +1197,34 @@ MODULE data_ops
 
              IF (rank == 0) THEN 
                 ncout = nf90_open(filename, NF90_NOWRITE, ncid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
 
                 ncout = nf90_inq_dimid(ncid, "x", x_dimid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
                 ncout = nf90_inq_dimid(ncid, "y", y_dimid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
                 ncout = nf90_inq_dimid(ncid, "z", z_dimid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
 
                 ncout = nf90_inq_varid(ncid, Fx_txt, fid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
@@ -1239,12 +1235,12 @@ MODULE data_ops
  
              IF (rank == 0) THEN 
                 ncout = nf90_inq_varid(ncid, Fy_txt, fid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
@@ -1255,12 +1251,12 @@ MODULE data_ops
  
              IF (rank == 0) THEN 
                 ncout = nf90_inq_varid(ncid, Fz_txt, fid)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
                 ncout = nf90_get_var(ncid, fid, global_f)
-                if (ncout /= NF90_NOERR) then
+                if (ncout /= NF90_NOERR .and. successful) then
                   CALL ncdf_error_handle(ncout)
                   successful = .false.
                 end if
@@ -1282,35 +1278,32 @@ MODULE data_ops
         !============================================
         ! SAVE LINE MINIMIZATION DATA
         !============================================
-        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, iter, optimizationIter, mysystem, mymode)
+        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, mymode)
           USE global_variables
           IMPLICIT NONE
           INCLUDE "mpif.h"
           
           REAL(pr), INTENT(IN) :: tA, tB, tC, FA, FB, FC
-          INTEGER, INTENT(IN) :: iter, optimizationIter
+          integer, intent(in) :: iter
           CHARACTER(len=*), INTENT(IN) :: mysystem
           CHARACTER(len=*), INTENT(IN) :: mymode
 
           CHARACTER(200) :: filename
           CHARACTER(2) :: K0txt, E0txt, IGtxt
-          CHARACTER(4) :: optimizationIterTxt
 !          CHARACTER(2) :: WEIGHTtxt
 
           WRITE(K0txt,'(i2.2)') K0_index
           WRITE(E0txt,'(i2.2)') E0_index
           WRITE(IGtxt,'(i2.2)') iguess
-          WRITE(optimizationIterTxt,'(i4.4)') optimizationIter
-!          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
 
           call createDirectoryIfNonExistent(ConstraintDir//"tau-data")
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
              if(iter<0) then
-               filename = ConstraintDir//"tau-data/"//"all-J-info-"//optimizationIterTxt//".dat"
+               filename = ConstraintDir//"tau-data/"//"all-J-info-"//optimizationIterationTxt//".dat"
              else
-               filename = ConstraintDir//"tau-data/"//"lineMin-info-"//optimizationIterTxt//".dat"
+               filename = ConstraintDir//"tau-data/"//"lineMin-info-"//optimizationIterationTxt//".dat"
              end if
              SELECT CASE (mymode)
                CASE ("replace")

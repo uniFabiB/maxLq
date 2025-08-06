@@ -5,11 +5,24 @@ SUBROUTINE initialize
    IMPLICIT NONE
    INCLUDE "fftw3-mpi.f03"             ! Needed, as there is a fftw_mpi_local_size_3d command below
 
-   CHARACTER(len=100) :: tempHostName
+   CHARACTER(len=100) :: tempHostName, tempLebesgueQText
    logical :: hostFound = .false.
-   INTEGER :: i, myIndex
+   INTEGER :: i, myIndex, lebesgueQintTemp
 
 
+   lebesgueQintTemp = nint(lebesgueQ)
+   if(abs(lebesgueQintTemp-lebesgueQ)>MACH_EPSILON) then
+      write (tempLebesgueQText, '(ES9.2)') lebesgueQ
+   else
+      if(lebesgueQ<10.0_pr-MACH_EPSILON) then
+         write (tempLebesgueQText, '(i1)') lebesgueQintTemp
+      elseif(lebesgueQ<100.0_pr-MACH_EPSILON) then
+         write (tempLebesgueQText, '(i2)') lebesgueQintTemp
+      else
+         write (tempLebesgueQText, '(ES9.2)') lebesgueQ
+      end if
+   end if
+   lebesgueQText = trim(adjustl(tempLebesgueQText))
 
 
    call hostnm(tempHostName)

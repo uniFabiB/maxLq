@@ -22,7 +22,7 @@ SUBROUTINE initialize
          write (tempLebesgueQText, '(ES9.2)') lebesgueQ
       end if
    end if
-   lebesgueQText = trim(adjustl(tempLebesgueQText))
+   lebesgueQTxt = trim(adjustl(tempLebesgueQText))
 
 
    call hostnm(tempHostName)

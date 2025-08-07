@@ -2,6 +2,7 @@ module function_ops
   
    implicit none
    CONTAINS
+
       !===================================
       !--Initial guess
       !===================================
@@ -4490,6 +4491,55 @@ module function_ops
          end if
       END FUNCTION matrixInversion3by3 
 
+
+      subroutine set_q_resol_bIterOffset_optimIterOffsets(fileName)
+         use global_variables
+         implicit none
+         character(len=*), intent(in) :: fileName
+         character(len=:), allocatable :: tempString1, tempString2
+         integer :: startIndex, endIndex
+
+         ! extract lebesgueQ value
+         startIndex = index(fileName,'_q')   ! first occurance
+         tempString1 = fileName(startIndex+2:)
+         endIndex = index(tempString1,"_")
+         tempString2 = tempString1(:endIndex-1)
+         read(tempString2,*) lebesgueQ
+
+         ! extract resol value
+         startIndex = index(fileName,'_n')   ! first occurance
+         tempString1 = fileName(startIndex+2:)
+         endIndex = index(tempString1,"_")
+         tempString2 = tempString1(:endIndex-1)
+         read(tempString2,*) resol
+
+         ! extract bIterOffset value
+         startIndex = index(fileName,'_B')   ! first occurance
+         tempString1 = fileName(startIndex+2:)
+         endIndex = index(tempString1,"_")
+         tempString2 = tempString1(:endIndex-1)
+         read(tempString2,*) bIterOffset
+         !!! might be reduced by 1 when optimizationIterOffset if not iterend !!!
+
+
+         ! extract optimizationIterOffset value
+         startIndex = index(fileName,'_iter')   ! first occurance
+         tempString1 = fileName(startIndex+5:)
+         endIndex = index(tempString1,".nc")
+         tempString2 = tempString1(:endIndex-1)
+         if(index(tempString2,"end")>0) then
+            optimizationIterOffset = 0
+         else
+            bIterOffset = bIterOffset - 1
+            read(tempString2,*) optimizationIterOffset
+         end if
+
+         if(rank==0) print*, "assigned lebesgueQ = ", lebesgueQ
+         if(rank==0) print*, "assigned resol = ", resol
+         if(rank==0) print*, "assigned bIterOffset = ", bIterOffset
+         if(rank==0) print*, "assigned optimizationIterOffset = ", optimizationIterOffset
+         
+      end subroutine set_q_resol_bIterOffset_optimIterOffsets
 
 
 END MODULE

@@ -19,6 +19,8 @@ MODULE data_ops
           CHARACTER(2) :: K0txt
           CHARACTER(2) :: E0txt
           CHARACTER(2) :: IGtxt
+          character(10) :: tempResolTxt
+          character(len=:), allocatable :: resolTxt
 !          CHARACTER(2) :: WEIGHTtxt   ! Newly added on April 24, 2017
           CHARACTER(200) :: filename
       
@@ -29,17 +31,20 @@ MODULE data_ops
           WRITE(K0txt, '(i2.2)') K0_index
           WRITE(E0txt, '(i2.2)') E0_index
           WRITE(IGtxt, '(i2.2)') iguess
-!          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
+          WRITE(tempResolTxt, '(i10)') resol
+
+          resolTxt = trim(adjustl(tempResolTxt))
+          
 
           SELECT CASE (mysystem)
             case ("maxdLqdt")
-               filename = ncDir//"u0"//"_q"//lebesgueQText//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u0"//"_q"//lebesgueQTxt//"_n"//resolTxt//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
                CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
             case ("maxdLqdt_result")
-               filename = ncDir//"u_result"//"_q"//lebesgueQText//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
+               filename = ncDir//"u_result"//"_q"//lebesgueQTxt//"_n"//resolTxt//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
                fx = U(:,:,:,1)
                fy = U(:,:,:,2)
                fz = U(:,:,:,3)
@@ -194,7 +199,7 @@ MODULE data_ops
 !          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
 !          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields"//"-q"//lebesgueQText//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
+          filename = ConstraintDir//"diagFields"//"-q"//lebesgueQTxt//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
           WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
@@ -771,7 +776,7 @@ MODULE data_ops
          CHARACTER(200) :: filename
          
 
-         filename = HomeDir//"results_q"//lebesgueQText//".dat"
+         filename = HomeDir//"results_q"//lebesgueQTxt//".dat"
 
          if(.not.optimizationSuccessful) iter = - iter
          

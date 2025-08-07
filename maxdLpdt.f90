@@ -57,26 +57,31 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0807_q3_B012_iter0175.nc"
-         bIterOffset = 11                                ! should match the loaded iteration or 0 if new
-                                                                     !0 = new optimization
-                                                                     !8 if continuing u_result_B009_iter1500.nc
-                                                                     !9 if u_result_B009_iterend.nc
-         optimizationIterOffset = 175                    ! should match the loaded iter or 0 if new
-                                                                     !0 = new optimization
-                                                                     !1500 if continuing u_result_B009_iter1500.nc
-                                                                     !0 if u_result_B009_iterend.nc
-                                                                     !just for documentation how many iterations were needed
+         loadTempFunctionName = "u_result_q9_n32_B001_iter00100.nc"
+         call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
+         !lebesgueQ = automatically now
+         !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new
+                                                                  !0 = new optimization
+                                                                  !8 if continuing u_result_B009_iter1500.nc
+                                                                  !9 if u_result_B009_iterend.nc
+         !optimizationIterOffset = automatically now     ! should match the loaded iter or 0 if new
+                                                                  !0 = new optimization
+                                                                  !1500 if continuing u_result_B009_iter1500.nc
+                                                                  !0 if u_result_B009_iterend.nc
+                                                                  !just for documentation how many iterations were needed
       else
+         lebesgueQ = 9.0_pr
+         resol = 32
+
+
+
          loadTempFunctionName = "iguess00"      ! allocate string resources
          write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
          bIterOffset = 0
          optimizationIterOffset = 0
       end if
 
-      
-      !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 3.0_pr
+      !call exit
 
 
       IF (rank==0) print*, "start"

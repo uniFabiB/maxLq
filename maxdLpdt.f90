@@ -54,15 +54,15 @@
       ! iguess 9 = load temp &loadTempFunctionName
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
-      iguess = 50
+      iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0804_q6_B013_iter8800.nc"
-         bIterOffset = 12                                ! should match the loaded iteration or 0 if new
+         loadTempFunctionName = "u_result_0807_q3_B012_iter0175.nc"
+         bIterOffset = 11                                ! should match the loaded iteration or 0 if new
                                                                      !0 = new optimization
                                                                      !8 if continuing u_result_B009_iter1500.nc
                                                                      !9 if u_result_B009_iterend.nc
-         optimizationIterOffset = 800                   ! should match the loaded iter or 0 if new
+         optimizationIterOffset = 175                    ! should match the loaded iter or 0 if new
                                                                      !0 = new optimization
                                                                      !1500 if continuing u_result_B009_iter1500.nc
                                                                      !0 if u_result_B009_iterend.nc
@@ -76,7 +76,7 @@
 
       
       !lebesgueQlist = (/2.0, 4.0, 5.0, 7.0, 10.0/)
-      lebesgueQ = 4.0_pr
+      lebesgueQ = 3.0_pr
 
 
       IF (rank==0) print*, "start"
@@ -86,8 +86,6 @@
       !=============================================
       CALL initialize()
       call init_fft()
-
-      if(rank==0) print*, "lebesgueQtext_", lebesgueQText,"_"
 
       !=============================================
       !-- Initialize Data Folders

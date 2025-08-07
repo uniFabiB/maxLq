@@ -14,7 +14,7 @@ MODULE global_variables
   REAL(pr), PARAMETER :: banachIterTol = 1.0e-7_pr            !original 1.0e-8_pr
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
-  integer, parameter :: resol = 512
+  integer, parameter :: resol = 1024
   real(pr), save :: lambda1 = 0.1_pr
   logical :: useBanachGradient = .false.                   ! banach gradient (true) or hilbert gradient (false)
   logical :: useOrthogonalGradient = .true.
@@ -48,9 +48,9 @@ MODULE global_variables
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
-  integer :: save_uvecEveryXiteration = 100                  ! <1 for never
+  integer :: save_uvecEveryXiteration = 1                  ! <1 for never
   integer :: save_scalarFieldsEveryXiteration = -1          ! <1 for never
-  integer :: save_spectraEveryXiteration = 100               ! <1 for never
+  integer :: save_spectraEveryXiteration = 1               ! <1 for never
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.

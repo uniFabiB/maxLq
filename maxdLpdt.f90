@@ -57,7 +57,7 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_q9_n32_B001_iter00100.nc"
+         loadTempFunctionName = "u_result_0811_q9_n256_B011_iter14700.nc"
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
          !lebesgueQ = automatically now
          !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new

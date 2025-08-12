@@ -242,7 +242,6 @@ MODULE data_ops
                
                
                write(10, "(A20)") " "
-               write(10, "(A20, G40.12)") "useBanachGradient", useBanachGradient
                write(10, "(A20, G40.12)") "useOrthogonalGradient", useOrthogonalGradient
                write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
                write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry

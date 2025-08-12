@@ -70,8 +70,8 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 9.0_pr
-         resol = 32
+         lebesgueQ = 4.0_pr
+         resol = 16
 
 
 

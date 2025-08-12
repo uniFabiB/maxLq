@@ -125,13 +125,8 @@ module optimization
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "calculating gradient"
             gradJ1 = GradL2ForLq(Uvec)
-            if(useBanachGradient) then
-               if(rank==0) print*, "todo change back to L2 gradient here"
-               gradJ1 = BanachGradient(uvec)
-            else
-               hildertOrderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
-               call HilbertGradient(gradJ1, hildertOrderS)
-            end if
+            hildertOrderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
+            call HilbertGradient(gradJ1, hildertOrderS)
             
             call divAvg_free(gradJ1)
 
@@ -144,11 +139,7 @@ module optimization
             if(rank==0 .and. verboseOptimization) print*, "calculating normal of tangent"
             normalL2 = calcConstraintDerivativeL2(Uvec)     ! normal = q |u|^{q-2} u = nabla( ||u||_q^q )
             normalHs = normalL2
-            if(useBanachGradient) then
-               normalHs = BanachGradient(normalHs)
-            else
-               call HilbertGradient(normalHs, hildertOrderS)
-            end if            
+            call HilbertGradient(normalHs, hildertOrderS)
             !testVec = calc0thFourierModes(normalHs)
             !call divAvg_free(normalHs)
             !testVec = calc0thFourierModes(normalHs)

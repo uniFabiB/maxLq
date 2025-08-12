@@ -3395,6 +3395,8 @@ module function_ops
 
 
       !======================================================
+      ! NOT IMPLEMENTED BECAUSE NOT FEASIBLE FOR REASONABLE n values
+      ! NEEDS TO SOLVE Ax = b where A is a (3*n^3) times (3*n^3) matrix
       ! CALCULATE THE NEXT ITERATION OF THE BANACH GRADIENT
       ! given the L2 gradient, the previous iteration (v_old), lambda (the lagrange multiplier fixing the norm), rho (the lagrange multiplier fixing the divergence free condition)
       !======================================================
@@ -3567,51 +3569,6 @@ module function_ops
 
          temp_vector = solve_hugh_system(matrix_f, partial_sG_sjml, tensor_g, ik_vector, basis_function_x, basis_function_y, basis_function_z, dcmplx(rhs,0.0_pr))
          
-
-         !!! OLD WRONG !!!
-         !! matrix_1(i,j,k) = (f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j)(x(i),y(j),z(k)) * phi(x(i),y(j),z(k), k_1(i), k_2(j), k_3(k))
-         !! i.e. evaluate the basis function at "diagonals", i.e. basis_func_x(ii, ii)
-         !! so we use the same indices for physical space as for fourier space
-         !allocate(aux(1:n(1),1:n(2),1:local_N))
-         !allocate(faux(1:n(1),1:n(2),1:local_N))
-         !do mm=1,3
-         !   do ll=1,3
-         !      do kk=1,local_n
-         !         do jj=1,n(2)
-         !            do ii=1,n(1)
-         !               matrix_1(ii,jj,kk,ll,mm) = matrix_1(ii,jj,kk,ll,mm)*basis_function_x(ii,ii)*basis_function_y(jj,jj)*basis_function_z(kk,kk)
-         !            end do
-         !         end do
-         !      end do
-         !      if(toDealias) then
-         !         call fftfwd(matrix_1(:,:,:,ll,mm),faux)
-         !         call dealiasing_cutoff_scalar_complex(faux, 2.0_pr)
-         !         call fftbwd(faux, aux)
-         !         matrix_1(:,:,:,ll,mm) = aux(:,:,:)
-         !      end if
-         !   end do
-         !end do
-         !deallocate(aux)
-         !deallocate(faux)
-         !
-         !
-         !allocate(matrix_1_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
-         !
-         !matrix_1_inverted = matrixInversion3by3(matrix_1)
-         !
-         !deallocate(matrix_1)
-         !
-         !! new = (fullmatrix)^{-1} rhs
-         !temp_vector(:,:,:,:) = 0.0_pr
-         !do ii=1,3
-         !   do jj=1,3
-         !      temp_vector(:,:,:,jj) = temp_vector(:,:,:,jj) + matrix_1_inverted(:,:,:,jj,ii)*rhs(:,:,:,ii)
-         !   end do
-         !end do
-         !deallocate(matrix_1_inverted)
-         !
-         !!! OLD WRONG END !!!
-
          call mpi_barrier(mpi_comm_world, statinfo)
          
          allocate(aux(1:n(1),1:n(2),1:local_N))
@@ -3701,7 +3658,8 @@ module function_ops
 
          complex(pr), dimension(:,:,:,:,:,:,:,:), allocatable :: hugh_tensor   ! tensor(x,y,z,k_x,k_y,k_z,l,m)
          complex(pr), dimension(:,:), allocatable :: hugh_matrix   ! tensor(xyzl,k_xk_yk_zlm)
-         complex(pr), dimension(:), allocatable :: hugh_rhs, hugh_x, useless_s
+         complex(pr), dimension(:), allocatable :: hugh_rhs, hugh_x, useless_s, rhs_real, rhs_imag
+         real(pr), dimension(:,:), allocatable :: hugh_matrix_real_re, hugh_matrix_real_im
          integer :: rank_out = 0
          integer, dimension(:), allocatable :: useless_ipiv
 
@@ -3714,6 +3672,8 @@ module function_ops
          complex(pr), dimension(:), allocatable :: myTemp1d, myTemp1d2, myTempHughRHSbackup
          complex(pr) :: myTempCheckVar
          real(pr) :: temptemp, temptemp2
+
+         real(pr), dimension(:), allocatable :: uselessHoch5
          !!! end delete his afterwards !!!
 
          integer :: ii, jj, kk, ll, mm, nn, oo, pp, qq, rr, indL, indM
@@ -3794,7 +3754,7 @@ module function_ops
                                  hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp) = matrix_A(ii,jj,kk,oo,pp) + myMatrixMixedDerivatives(ii,jj,kk,ll,mm,nn,oo,pp) + k_sk_jg_sjml(ii,jj,kk,ll,mm,nn,oo,pp)
                                  call random_number(temptemp)
                                  call random_number(temptemp2)
-                                 hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp) = dcmplx(temptemp,temptemp2)
+                                 !hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp) = dcmplx(temptemp,temptemp2)
                                  hugh_matrix(indL, indM) = hugh_tensor(ii,jj,kk,ll,mm,nn,oo,pp)
                               end do
                            end do
@@ -3804,6 +3764,11 @@ module function_ops
                end do
             end do
          end do
+
+         allocate(hugh_matrix_real_re(1:hughDim,1:hughDim))
+         allocate(hugh_matrix_real_im(1:hughDim,1:hughDim))
+         hugh_matrix_real_re(:, :) = real(hugh_matrix(:,:))
+         hugh_matrix_real_im(:, :) = aimag(hugh_matrix(:,:))
 
 
 
@@ -3833,6 +3798,9 @@ module function_ops
          end do
 
          myTempHughRHSbackup = hugh_rhs
+         rhs_real = hugh_rhs
+         rhs_imag = hugh_rhs
+
 
 
          allocate(useless_ipiv(1:hughDim))
@@ -3842,17 +3810,79 @@ module function_ops
          if(rank==0) print*, "starting zgesv ..."
          call mpi_barrier(mpi_comm_world, statinfo)
          
+         
          call zgesv(hughDim, 1, hugh_matrix, hughDim, useless_ipiv, hugh_rhs, hughDim, info)
 
          call mpi_barrier(mpi_comm_world, statinfo)
          if(rank==0) then
             if (info==0) then
-               print*, achar(9), "done"
+               print*, achar(9), "complex done"
             else
-               print*, achar(9), "done with errors! zgesv error info ", info
+               print*, achar(9), "complex done with errors! zgesv error info ", info
             end if
          end if
          call mpi_barrier(mpi_comm_world, statinfo)
+
+
+         
+         call dgesv(hughDim, 1, hugh_matrix_real_re, hughDim, useless_ipiv, rhs_real, hughDim, info)
+
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) then
+            if (info==0) then
+               print*, achar(9), "real part done"
+            else
+               print*, achar(9), "real part done with errors! dgesv error info ", info
+            end if
+         end if
+         call mpi_barrier(mpi_comm_world, statinfo)
+
+         
+         call dgesv(hughDim, 1, hugh_matrix_real_im, hughDim, useless_ipiv, rhs_imag, hughDim, info)
+
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) then
+            if (info==0) then
+               print*, achar(9), "imag part done"
+            else
+               print*, achar(9), "imag part done with errors! dgesv error info ", info
+            end if
+         end if
+         call mpi_barrier(mpi_comm_world, statinfo)
+
+         ! condition number
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) print*, "starting zgecon ..."
+         call mpi_barrier(mpi_comm_world, statinfo)
+         
+         allocate(useless_s(1:2*hughDim))
+         
+         allocate(uselessHoch5(1:2*hughDim))
+         temptemp = 0.0_pr
+         do jj = 1,hughDim
+            do ii = 1,hughDim
+               temptemp = temptemp + abs(hugh_matrix(ii,jj))
+               !if(abs(hugh_matrix(ii,jj))>temptemp) temptemp = (abs(hugh_matrix(ii,jj)))
+            end do         
+         end do
+         call zgecon('1',hughDim, hugh_matrix, hughDim, temptemp, temptemp2, useless_s, uselessHoch5, info)
+         call mpi_barrier(mpi_comm_world, statinfo)
+         if(rank==0) then
+            if (info==0) then
+               print*, achar(9), "done, condition number ", 1.0_pr/temptemp2, "      norm(A) ", temptemp
+            else
+               print*, achar(9), "done with errors! zgecon error info ", info
+            end if
+         end if
+         call mpi_barrier(mpi_comm_world, statinfo)
+
+         temptemp2 = 0.0_pr
+         do ii = 1,20
+            print*, hugh_rhs(ii), rhs_real(ii), rhs_imag(ii)
+            !temptemp2 = temptemp2 + abs(hugh_rhs(ii)-dcmplx())
+         end do
+
 
          if(rank==0) print*, "starting vector reconstruction from hugh vector"
 
@@ -3927,166 +3957,6 @@ module function_ops
          !if(rank==0) print*, achar(9), "hugh result testing done"
          
       end function solve_hugh_system
-
-      !======================================================
-      ! CALCULATE THE NEXT ITERATION OF THE BANACH GRADIENT
-      ! given the L2 gradient, the previous iteration (v_old), lambda (the lagrange multiplier fixing the norm), rho (the lagrange multiplier fixing the divergence free condition)
-      !======================================================
-      function BanachGradientIterationOLD(l2Grad, v_old, lambda, rho, tau) result (v_new)
-         USE global_variables
-         USE fftwfunction
-         IMPLICIT NONE
-
-         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3), intent(in) :: l2Grad, v_old
-         real(pr), dimension(1:n(1),1:n(2),1:local_N), intent(in) :: rho ! lagrange multiplier for divergence free
-         real(pr), intent(in) :: lambda   ! lagrange multiplier for norm
-         real(pr), intent(in) :: tau      ! step size
-         real(pr) :: s                    ! s = 3q/(q+1)
-         real(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3) :: v_new
-
-
-         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3) :: rhs
-         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3) :: matrix_f
-         real(pr), dimension(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3,1:3) :: tensor_g
-         real(pr) :: norm ! to normalize
-
-
-
-         complex(pr), dimension(:,:,:,:), allocatable :: rhs_hat
-
-         real(pr), dimension(:,:,:), allocatable :: tempSca
-         real(pr), dimension(:,:,:,:), allocatable :: tempVec
-         real(pr), dimension(:,:,:,:,:,:), allocatable :: temp_tensor3
-         
-         complex(pr), dimension(:,:,:,:,:), allocatable :: temp_matrix, matrix_1, matrix_1_inverted
-         complex(pr), dimension(:,:,:,:), allocatable :: temp_vector
-
-         integer :: ii, jj, kk, ll
-
-         complex(pr), dimension(:,:,:), allocatable :: aux,faux
-
-
-         s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
-
-
-         call BanachGradient_calcFmatrixGtensorRhs(l2Grad, v_old, lambda, rho, matrix_f, tensor_g, rhs, tau)
-
-         allocate(matrix_1(1:n(1),1:n(2),1:local_N,1:3,1:3))
-         allocate(temp_tensor3(1:n(1),1:n(2),1:local_N,1:3,1:3,1:3))
-         allocate(tempVec(1:n(1),1:n(2),1:local_N,1:3))
-         allocate(tempSca(1:n(1),1:n(2),1:local_N))
-
-         do ll=1,3
-            do kk=1,3
-               do jj=1,3
-                     tempVec(:,:,:,:) = tensor_g(:,:,:,:,jj,kk,ll)
-                     call divergence(tempVec,tempSca)
-                     temp_tensor3(:,:,:,jj,kk,ll) = tempSca       ! temp_tensor3(:,:,:,jj,kk,ll) = partial_i g_ijkl
-               end do
-            end do
-         end do
-
-         deallocate(tempSca)
-         deallocate(tempVec)
-
-         ! temp_vector_j = i k_j
-         allocate(temp_vector(1:n(1),1:n(2),1:local_N,1:3))
-         DO kk = 1, local_N
-            DO jj = 1, n(2)
-               DO ii = 1, n(1)
-                  temp_vector(ii,jj,kk,1) = dcmplx(0.0_pr, K1(ii))
-                  temp_vector(ii,jj,kk,2) = dcmplx(0.0_pr, K2(jj))
-                  temp_vector(ii,jj,kk,3) = dcmplx(0.0_pr, K3(kk+local_k_offset))
-               END DO
-            END DO
-         END DO
-
-         ! tempmatrix = i partial_s g_sjkl k_j
-         allocate(temp_matrix(1:n(1),1:n(2),1:local_N,1:3,1:3))
-         temp_matrix = 0.0_pr
-         do ll=1,3
-            do kk=1,3
-               do jj=1,3
-                  temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
-                  ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
-               end do
-            end do
-         end do
-
-         ! matrix_1 = f_lm - i partial_s g_sjml k_j + ...(later)...
-         matrix_1(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
-
-         ! temp_tensor3 = g_sjml (i k_s)
-         temp_tensor3 = 0.0_pr
-         do ll=1,3
-            do kk=1,3
-               do jj=1,3
-                  do ii=1,3
-                     temp_tensor3(:,:,:,jj,kk,ll) = temp_tensor3(:,:,:,jj,kk,ll) + tensor_g(:,:,:,ii,jj,kk,ll)*temp_vector(:,:,:,ii)
-                     ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
-                  end do
-               end do
-            end do
-         end do
-         ! temp_matrix = g_sjml * (i k_s) (i k_j) = temp_tensor3_jkl * i k_j
-         temp_matrix = 0.0_pr
-         do ll=1,3
-            do kk=1,3
-               do jj=1,3
-                  temp_matrix(:,:,:,kk,ll) = temp_matrix(:,:,:,kk,ll) + temp_tensor3(:,:,:,jj,kk,ll)*temp_vector(:,:,:,jj)
-                  ! no dealiasing since in gradient f -> i k f_hat there is also no dealiasing
-               end do
-            end do
-         end do
-
-         deallocate(temp_tensor3)
-
-
-         ! matrix_1 = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
-         !             = f_lm - partial_s g_sjml (i k_j) - g_sjml (i k_s) (i k_j)
-         matrix_1(:,:,:,:,:) = matrix_1(:,:,:,:,:) - BanachGradientWCoefficient*temp_matrix(:,:,:,:,:)
-
-         allocate(matrix_1_inverted(1:n(1),1:n(2),1:local_N,1:3,1:3))
-
-         matrix_1_inverted = matrixInversion3by3(matrix_1)
-
-         deallocate(matrix_1)
-
-         allocate(rhs_hat(1:n(1),1:n(2),1:local_N,1:3))
-         allocate(aux(1:n(1),1:n(2),1:local_N))
-         allocate(faux(1:n(1),1:n(2),1:local_N))
-
-         do ii=1,3
-            aux = dcmplx(rhs(:,:,:,ii),0.0_pr)
-            call fftfwd(aux,faux)
-            rhs_hat(:,:,:,ii) = faux(:,:,:)
-         end do
-
-
-         ! new = (fullmatrix)^{-1} rhs
-         temp_vector(:,:,:,:) = 0.0_pr
-         do ii=1,3
-            do jj=1,3
-               temp_vector(:,:,:,ii) = temp_vector(:,:,:,ii) + matrix_1_inverted(:,:,:,ii,jj)*rhs_hat(:,:,:,jj)
-            end do
-         end do
-         deallocate(matrix_1_inverted)
-         deallocate(rhs_hat)
-
-         do ii=1,3
-            faux(:,:,:) = temp_vector(:,:,:,ii)
-            call fftbwd(faux,aux)
-            v_new(:,:,:,ii) = real(aux,pr)
-         end do
-
-         norm = calc_global_W1s_norm(v_new, s)
-         v_new(:,:,:,:) = v_new(:,:,:,:)/norm
-
-         deallocate(aux)
-         deallocate(faux)
-
-      end function BanachGradientIterationOLD
-
 
 
       !======================================================

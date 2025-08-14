@@ -261,8 +261,6 @@ MODULE data_ops
                write(10, "(A20, ES40.12)") "visc", visc
                write(10, "(A20, G40.12)") "viscCoefficient", viscCoefficient
                write(10, "(A20, G40.12)") "pressureCoefficient", pressureCoefficient
-               write(10, "(A20, G40.12)") "BanachGradientWCoefficient", BanachGradientWCoefficient
-               write(10, "(A20, G40.12)") "BanachGradientLCoefficient", BanachGradientLCoefficient
                write(10, "(A20)") " "
                write(10, "(A20, I40)") "local_N", local_N
                write(10, "(A20, I40)") "total_local_size", total_local_size

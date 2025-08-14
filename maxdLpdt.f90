@@ -57,7 +57,7 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0811_q9_n256_B011_iter14700.nc"
+         loadTempFunctionName = "u_result_0814_q6_n256_B013_iterend.nc"
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
          !lebesgueQ = automatically now
          !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new
@@ -81,9 +81,6 @@
          optimizationIterOffset = 0
       end if
 
-      !call exit
-
-
       IF (rank==0) print*, "start"
 
       !=============================================
@@ -103,7 +100,7 @@
       ! Set initial Uvec
       !=============================================
       call initial_guess
-      IF (.true.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"u0.nc", "netCDF")
+      IF (.true.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"initial_u.nc", "netCDF")
       IF (.true.) call calculateSaveSpectrum(uvec,"output/u0")
       
 
@@ -113,19 +110,13 @@
       if (rank == 0 .and. ((abs(pressureCoefficient-1.0)>MACH_EPSILON))) then
          print*, "WARNING pressureCoefficient ", pressureCoefficient, "not 1"
       end if
-      if (rank == 0 .and. ((abs(BanachGradientWCoefficient-1.0)>MACH_EPSILON))) then
-         print*, "WARNING BanachGradientWCoefficient ", BanachGradientWCoefficient, "not 1"
-      end if
-      if (rank == 0 .and. ((abs(BanachGradientLCoefficient-1.0)>MACH_EPSILON))) then
-         print*, "WARNING BanachGradientLCoefficient ", BanachGradientLCoefficient, "not 1"
-      end if
 
       !=========================================================
       ! Create B value and result list
       !=========================================================
       allocate( B_list(1:64+bIterOffset) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
-      
+
 
       if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
          B_list(1) = 0.1_pr
@@ -160,7 +151,7 @@
       !=========================================================
       ! Loop over different values of constraint B values
       !=========================================================
-      do B_list_iterator = 1+bIterOffset,size(B_list)+bIterOffset
+      do B_list_iterator = 1+bIterOffset,size(B_list)
          constraintB = B_list(B_list_iterator)
          write(bIterTxt, '(i3.3)') B_list_iterator
          write(bTxt, '(ES7.1)') constraintB
@@ -176,7 +167,6 @@
 !      call fftw_mpi_cleanup()          ! Newly Added in Jan 17, but not sure whether it should be here; March 20, 2017
       CALL MPI_FINALIZE (Statinfo)
       
-
       IF (rank==0) print*, "end"
  
    END PROGRAM main

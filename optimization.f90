@@ -65,7 +65,7 @@ module optimization
          !====================================
          if(kappaTest) then
             gradJ1 = GradL2ForLq(Uvec)
-            call kappa_test(uvec, gradJ1, .true., "maxdLqdt", "initial grad L2", "L2")  
+            call kappa_test(uvec, gradJ1, .true., "maxdLqdt", "initial_grad_L2", "L2")  
          end if
 
          !======================================================
@@ -505,7 +505,8 @@ module optimization
       integer :: bgIter
       real(pr) :: residual = 99999.9_pr
       real(pr) :: glob_norm_v_sq
-
+      integer :: banachGradIterMax = 9999
+      real(pr) :: banachIterTol = 1.0e-7
 
       s = 3.0_pr*lebesgueQ/(lebesgueQ+1.0_pr)
 

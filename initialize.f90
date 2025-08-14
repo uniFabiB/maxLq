@@ -10,6 +10,24 @@ SUBROUTINE initialize
    INTEGER :: i, myIndex, lebesgueQintTemp
 
 
+   !!! set optim_tol !!!
+   ! original 1.0e-8_pr, me for long time 1.0e-7_pr
+   if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-7_pr
+   else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-6_pr
+   else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else if(abs(lebesgueQ-6.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else if(abs(lebesgueQ-9.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-4_pr
+   else
+      if(rank==0)print*, "WARNING in initialize, probably not a nice q value"
+      OPTIM_TOL = 1.0e-4_pr
+   end if
+   if(rank==0) print*, "set OPTIM_TOL = ",OPTIM_TOL
+
    lebesgueQintTemp = nint(lebesgueQ)
    if(abs(lebesgueQintTemp-lebesgueQ)>MACH_EPSILON) then
       write (tempLebesgueQText, '(ES9.2)') lebesgueQ

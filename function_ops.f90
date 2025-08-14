@@ -3529,7 +3529,7 @@ module function_ops
 
          allocate(matrix_1(1:n(1),1:n(2),1:local_N,1:3,1:3))
          ! matrix_1 = f_lm - i partial_s g_sjml k_j + ...(later)...
-         matrix_1(:,:,:,:,:) = BanachGradientLCoefficient * matrix_f(:,:,:,:,:) - BanachGradientWCoefficient * temp_matrix(:,:,:,:,:)
+         matrix_1(:,:,:,:,:) = matrix_f(:,:,:,:,:) - temp_matrix(:,:,:,:,:)
 
 
          ! temp_tensor3_jml = g_sjml i k_s
@@ -3564,10 +3564,11 @@ module function_ops
 
          ! matrix_1 = f_lm - i partial_s g_sjml k_j + g_sjml k_s k_j
          !             = f_lm - i partial_s g_sjml k_j - g_sjml (i k_s) (i k_j)
-         matrix_1(:,:,:,:,:) = matrix_1(:,:,:,:,:) - BanachGradientLCoefficient * temp_matrix(:,:,:,:,:)
+         matrix_1(:,:,:,:,:) = matrix_1(:,:,:,:,:) - temp_matrix(:,:,:,:,:)
 
 
          temp_vector = solve_hugh_system(matrix_f, partial_sG_sjml, tensor_g, ik_vector, basis_function_x, basis_function_y, basis_function_z, dcmplx(rhs,0.0_pr))
+      
          
          call mpi_barrier(mpi_comm_world, statinfo)
          
@@ -4179,7 +4180,7 @@ module function_ops
          allocate(tempTensor(1:n(1),1:n(2),1:local_N,1:3,1:3))
          
          do ii=1,3
-            rhs(:,:,:,ii) = BanachGradientLCoefficient * (s-1.0_pr-tau) * normv_oldPow(:,:,:) * v_old(:,:,:,ii)
+            rhs(:,:,:,ii) = (s-1.0_pr-tau) * normv_oldPow(:,:,:) * v_old(:,:,:,ii)
             if (toDealias) call dealias_scalar(rhs(:,:,:,ii), 2.0_pr)
          end do
 
@@ -4196,7 +4197,7 @@ module function_ops
          do kk=1,3
             tempVec(:,:,:,:) = tempTensor(:,:,:,kk,:)   ! tempTensor(:,:,:,i,j) = ... * partial_j v_i
             call divergence(tempVec, tempSca)
-            rhs(:,:,:,kk) = rhs(:,:,:,kk) - BanachGradientWCoefficient * (s-1.0_pr-tau) * tempSca(:,:,:)
+            rhs(:,:,:,kk) = rhs(:,:,:,kk) - (s-1.0_pr-tau) * tempSca(:,:,:)
          end do
 
          deallocate(tempSca)
@@ -4274,7 +4275,7 @@ module function_ops
             ! temp_sca(:,:,:,jj) = partial_j ( ...* partial_j v_i )
             temp_vec(:,:,:,:) = temp_matrix(:,:,:,ii,:)
             call divergence(temp_vec, temp_sca)
-            poisson_rhs_vec(:,:,:,ii) = lambda*poisson_rhs_vec(:,:,:,ii) - BanachGradientWCoefficient*lambda*temp_sca(:,:,:)            
+            poisson_rhs_vec(:,:,:,ii) = lambda*poisson_rhs_vec(:,:,:,ii) - lambda*temp_sca(:,:,:)            
          end do
 
          call divergence(poisson_rhs_vec, poisson_rhs)

@@ -47,9 +47,7 @@ module optimization
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
 
          if(rank==0 .and. verboseOptimization) print*, "starting maxdLqdt"
-         
          call initializeConstraintDirectory
-         
 
          !====================================
          ! rescale to match the potentially changed constraint value

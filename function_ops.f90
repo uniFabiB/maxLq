@@ -1019,9 +1019,8 @@ module function_ops
          real(pr), dimension(1:n(1),1:2) :: spectrum
 
          CALL calculate_spectral_data(vec, Spectrum)
-         IF (rank==0) THEN
-            CALL save_spectral_data(Spectrum, fileName)
-         end if
+         CALL save_spectral_data(Spectrum, fileName)
+         
       end subroutine calculateSaveSpectrum
 
       !=========================================================
@@ -1044,9 +1043,7 @@ module function_ops
             CALL calculate_spectral_data(matrix(:,:,:,:,ii), spectrumPart(:,:,ii))
             spectrum(:,:) = spectrum(:,:) + spectrumPart(:,:,ii)
          end do
-         IF (rank==0) THEN
-            CALL save_spectral_data(Spectrum, fileName)
-         end if
+         CALL save_spectral_data(Spectrum, fileName)
       end subroutine calculateSaveSpectrumMatrix
 
 

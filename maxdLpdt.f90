@@ -57,7 +57,7 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0814_q6_n256_B013_iterend.nc"
+         loadTempFunctionName = "u_result_0822_q9_n256_B012_iter02000.nc"
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
          !lebesgueQ = automatically now
          !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new
@@ -71,7 +71,7 @@
                                                                   !just for documentation how many iterations were needed
       else
          lebesgueQ = 4.0_pr
-         resol = 16
+         resol = 32
 
 
 
@@ -101,8 +101,10 @@
       !=============================================
       call initial_guess
       IF (.true.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"initial_u.nc", "netCDF")
-      IF (.true.) call calculateSaveSpectrum(uvec,"output/u0")
-      
+      if (.true.) then
+         call initializeConstraintDirectory
+         call calculateSaveSpectrum(uvec,"initial_u")
+      end if
 
       if (rank == 0 .and. ((abs(viscCoefficient-1.0)>MACH_EPSILON))) then
          print*, "WARNING viscCoefficient ",viscCoefficient, "not 1"
@@ -124,6 +126,7 @@
             constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
             if(constraintB>10.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
             if(constraintB>50.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+            if(constraintB>130.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
             B_list(B_list_iterator) = constraintB         
          end do
       elseif(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
@@ -160,13 +163,13 @@
          ! OPTIMIZE !
          !=========================================================
          call maxdLqdt
-
       END DO
 
+
       call fft_deallocate
-!      call fftw_mpi_cleanup()          ! Newly Added in Jan 17, but not sure whether it should be here; March 20, 2017
-      CALL MPI_FINALIZE (Statinfo)
+      call fftw_mpi_cleanup()          ! Newly Added in Jan 17, but not sure whether it should be here; March 20, 2017
+      CALL mpi_finalize(Statinfo)
       
-      IF (rank==0) print*, "end"
+      if (rank==0) print*, "end"
  
    END PROGRAM main

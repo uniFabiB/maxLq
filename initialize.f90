@@ -13,21 +13,37 @@ SUBROUTINE initialize
    !!! set optim_tol !!!
    ! original 1.0e-8_pr, me for long time 1.0e-7_pr
    if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-7_pr
+      OPTIM_TOL = 1.0e-4_pr
    else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-6_pr
+      OPTIM_TOL = 1.0e-5_pr
    else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
       OPTIM_TOL = 1.0e-5_pr
    else if(abs(lebesgueQ-6.0_pr)<MACH_EPSILON) then
       OPTIM_TOL = 1.0e-5_pr
    else if(abs(lebesgueQ-9.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-4_pr
+      OPTIM_TOL = 1.0e-5_pr
    else
       if(rank==0)print*, "WARNING in initialize, probably not a nice q value"
-      OPTIM_TOL = 1.0e-4_pr
+      OPTIM_TOL = 1.0e-5_pr
    end if
    if(rank==0) print*, "set OPTIM_TOL = ",OPTIM_TOL
 
+
+   !!! setting up how often to save the vector field an spectral data
+   if(resol==256) then
+      save_uvecEveryXiteration = 1000
+   elseif(resol==512) then
+      save_uvecEveryXiteration = 100
+   elseif(resol==1024) then
+      save_uvecEveryXiteration = 25
+   else
+      save_uvecEveryXiteration = 100
+   end if
+   save_spectraEveryXiteration = save_uvecEveryXiteration/10
+
+
+
+   !!! setting up q output text
    lebesgueQintTemp = nint(lebesgueQ)
    if(abs(lebesgueQintTemp-lebesgueQ)>MACH_EPSILON) then
       write (tempLebesgueQText, '(ES9.2)') lebesgueQ
@@ -43,6 +59,7 @@ SUBROUTINE initialize
    lebesgueQTxt = trim(adjustl(tempLebesgueQText))
 
 
+   !!! setting up input directory depending on cluster
    call hostnm(tempHostName)
    hostName = trim(tempHostName)
    myIndex = index(string=hostName,substring="gra")
@@ -77,6 +94,8 @@ SUBROUTINE initialize
       if(rank==0) print*, achar(9), "using standard input directory ", inputDir
    end if
    
+
+   !!! setting up fft
    C_n(1) = RESOL
    C_n(2) = RESOL
    C_n(3) = RESOL

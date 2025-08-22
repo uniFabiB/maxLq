@@ -35,7 +35,7 @@ MODULE global_variables
 
 
   !debug params!
-  logical :: verboseOptimization = .false.                  ! verbosely output stuff to terminal
+  logical :: verboseOptimization = .false.                   ! verbosely output stuff to terminal
   logical :: tauDebugToConsole = .true.                     ! verbosely output stuff to terminal     
   real(pr) :: checkDivergenceTolerance = 1.0e-15            ! tolerance to still be considered divergence free
   real(pr) :: checkNormalTolerance = 1.0e-12                ! tolerance to still be considered orthogonal
@@ -45,9 +45,9 @@ MODULE global_variables
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
-  integer :: save_uvecEveryXiteration = 1000                 ! <1 for never
+  integer :: save_uvecEveryXiteration                        ! <1 for never   now automatically in initialize: n256 -> 1000, n512 -> 100, n1024 -> 10
   integer :: save_scalarFieldsEveryXiteration = -1           ! <1 for never
-  integer :: save_spectraEveryXiteration = 100               ! <1 for never
+  integer :: save_spectraEveryXiteration                     ! <1 for never   now automatically in initialize: basically save_uvecEvery/10
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.
@@ -70,7 +70,7 @@ MODULE global_variables
   real(pr), dimension(:,:), allocatable :: optimizationResultList
   real(pr), dimension(:), allocatable :: B_list
   integer :: B_list_iterator
-  character(3) :: bIterTxt
+  character(3) :: bIterTxt = "nan"
   character(7) :: Btxt
   integer :: bIterOffset
   integer :: optimizationIterOffset

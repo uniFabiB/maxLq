@@ -276,6 +276,7 @@ MODULE data_ops
           IMPLICIT NONE
  
           REAL(pr), DIMENSION(1:n(1),1:2), INTENT(IN) :: mydata
+          character(len=:), allocatable :: spectraDir
           CHARACTER(200) :: filename
           !character(10) :: dealiasing_str
           CHARACTER(*) :: name
@@ -289,13 +290,21 @@ MODULE data_ops
           !end if
 
           !filename = HomeDir//trim(dealiasing_str)//name//"_spectrum.dat"
-          filename = ConstraintDir//name//"-spectrum"//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"
 
-          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-          DO i=1,n(1)
-             WRITE(10, "(2 ES20.12)") mydata(i,1), mydata(i,2)
-          END DO
-          CLOSE(10)
+
+
+          spectraDir = ConstraintDir//"spectra/"
+          call createDirectoryIfNonExistent(spectraDir)
+
+          filename = spectraDir//name//"-spectrum"//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"
+
+          if(rank==0) then
+            OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+            DO i=1,n(1)
+               WRITE(10, "(2 ES20.12)") mydata(i,1), mydata(i,2)
+            END DO
+            CLOSE(10)
+          end if
         END SUBROUTINE save_spectral_data
 
         !==========================================
@@ -840,20 +849,29 @@ MODULE data_ops
          !===========================================================
          subroutine initializeConstraintDirectory()
             use global_variables
+            use mpi
             implicit none
 
-            character(200) :: constParDir
-            
+            character(len=:), allocatable :: constParDir
+
+
             !create parent directory
-            constParDir=trim(HomeDir//"constraintDirs/")
-            call createDirectoryIfNonExistent(trim(constParDir))
-   
-            !create constraint directory
-            ConstraintDir = trim(constParDir)//"B"//bIterTxt//"-"//bTxt//"/"
-            call createDirectoryIfNonExistent(trim(ConstraintDir))
+            constParDir = HomeDir//"constraintDirs/"
+
+            call createDirectoryIfNonExistent(constParDir)
+
+
+            if(bIterTxt=="nan") then
+               ! create initial directory
+               ConstraintDir = constParDir//"B000-initial/"
+            else
+               !create constraint directory
+               ConstraintDir = constParDir//"B"//bIterTxt//"-"//bTxt//"/"
+            end if
+            call createDirectoryIfNonExistent(ConstraintDir)
+            
 
          end subroutine initializeConstraintDirectory
-
  
         !===========================================================
         ! create directory
@@ -865,25 +883,73 @@ MODULE data_ops
             character(len=*), intent(in) :: fullDir
             integer :: status
             logical :: dirExists
+            logical :: useBarrier
 
-            CALL mpi_barrier(mpi_comm_world, statinfo)
 
             if(rank==0) then
                !check if exists already
                inquire(file=trim(fullDir), exist=dirExists)
-
                if(.not. dirExists) then
                   !print*, "creating dir ", fullDir
                   status = system( "mkdir " // fullDir )
-                  !print*, "creating dir", fullDir, "status", status
                   if(status /= 0) then
                      print*, "mkdir " // fullDir // " failed"
+                  else
+                     if(verboseOptimization) print*, "mkdir " // fullDir // " successful"
                   end if
+               else
+                  if(verboseOptimization) print*, "dir ", fullDir, " already exists"
                end if
             end if
 
-            CALL mpi_barrier(mpi_comm_world, statinfo)
+            call mpi_barrier(mpi_comm_world, statinfo)
+
          end subroutine createDirectoryIfNonExistent
+
+         !===========================================================
+         ! create directory
+         !===========================================================
+          subroutine createDirectoryIfNonExistent2(fullDir)
+             use global_variables
+             use mpi
+             implicit none
+             character(len=*), intent(in) :: fullDir
+             integer :: status
+             logical :: dirExists
+             logical :: useBarrier
+ 
+
+
+             call mpi_barrier(mpi_comm_world, statinfo)
+             call sleep(2)
+             call mpi_barrier(mpi_comm_world, statinfo)
+
+ 
+             if(rank==0) then
+                !check if exists already
+                inquire(file=trim(fullDir), exist=dirExists)
+                if(.not. dirExists) then
+                   !print*, "creating dir ", fullDir
+                   status = system( "mkdir " // fullDir )
+                   !print*, "creating dir ", fullDir, " status", status
+                   if(status /= 0) then
+                      !print*, "mkdir " // fullDir // " failed"
+                   end if
+                else
+                   !if(verboseOptimization) print*, "dir ", fullDir, " already exists"
+                end if
+             end if
+ 
+             print*, "g", " rank ", rank, " ", fullDir, " statinfo ", statinfo
+ 
+             call mpi_barrier(mpi_comm_world, statinfo)
+            
+
+             call sleep(10)
+
+             print*, "h", " rank ", rank, " ", fullDir, " statinfo ", statinfo
+ 
+          end subroutine createDirectoryIfNonExistent2
 
  
         !===========================================================
@@ -1381,7 +1447,7 @@ MODULE data_ops
           print*, " Error reading netCDF file. ", error_string
 
           IF (rank==0) THEN
-             OPEN(10, FILE=HomeDir//"/LOGFILE-B"//bIterTxt//"_info.log", POSITION='APPEND')
+             OPEN(10, FILE=constraintDir//"/netcdf.log", POSITION='APPEND')
              WRITE(10,*) " Error reading netCDF file. "//error_string
              CLOSE(10)
           END IF

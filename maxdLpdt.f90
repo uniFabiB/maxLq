@@ -57,7 +57,10 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0822_q9_n256_B012_iter02000.nc"
+         loadTempFunctionName = "u_result_0927_q4_n1024_B018_iterend.nc"
+         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
+
+
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
          !lebesgueQ = automatically now
          !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new
@@ -70,10 +73,9 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 4.0_pr
-         resol = 32
-
-
+         lebesgueQ = 9.0_pr
+         resol = 128
+         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
 
          loadTempFunctionName = "iguess00"      ! allocate string resources
          write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
@@ -89,6 +91,20 @@
       CALL initialize()
       call init_fft()
 
+      if(.not.standardParams) then
+         !!! change parameters for test runs !!!
+         if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+            OPTIM_TOL = 1.0e-6_pr
+         end if
+
+         if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+            save_uvecEveryXiteration = 10
+            save_dEveryXiteration = 10
+            save_gradL2EveryXiteration = 10
+            save_spectraEveryXiteration = 1
+         end if
+      end if
+
       !=============================================
       !-- Initialize Data Folders
       !=============================================
@@ -100,11 +116,9 @@
       ! Set initial Uvec
       !=============================================
       call initial_guess
-      IF (.true.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"initial_u.nc", "netCDF")
-      if (.true.) then
-         call initializeConstraintDirectory
-         call calculateSaveSpectrum(uvec,"initial_u")
-      end if
+      IF (.false.) call save_field_R3toR3_ncdf(Uvec(:,:,:,1), Uvec(:,:,:,2), Uvec(:,:,:,3), "Ux", "Uy", "Uz", ncDir//"initial_u.nc", "netCDF")
+      if (.true.) call initializeConstraintDirectory
+      if (.true.) call calculateSaveSpectrum(uvec,"initial_u")
 
       if (rank == 0 .and. ((abs(viscCoefficient-1.0)>MACH_EPSILON))) then
          print*, "WARNING viscCoefficient ",viscCoefficient, "not 1"
@@ -116,31 +130,26 @@
       !=========================================================
       ! Create B value and result list
       !=========================================================
-      allocate( B_list(1:64+bIterOffset) )
+      allocate( B_list(1:32+bIterOffset) )
       allocate( optimizationResultList(1:3,0:size(B_list)) )
 
 
-      if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
-         B_list(1) = 0.1_pr
-         do B_list_iterator=2,size(B_list)
-            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
-            if(constraintB>10.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
-            if(constraintB>50.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
-            if(constraintB>130.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
-            B_list(B_list_iterator) = constraintB         
-         end do
-      elseif(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+      !if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+      !   B_list(1) = 0.1_pr
+      !   do B_list_iterator=2,size(B_list)
+      !      constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
+      !      if(constraintB>10.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
+      !      if(constraintB>50.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
+      !      if(constraintB>130.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
+      !      B_list(B_list_iterator) = constraintB
+      !   end do
+      !elseif(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+      if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
          B_list(1) = 1.0_pr
          do B_list_iterator=2,size(B_list)
             constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/4.0_pr)
             if(constraintB>100.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/16.0_pr)
             if(constraintB>110.0_pr) constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/32.0_pr)
-            B_list(B_list_iterator) = constraintB
-         end do
-      elseif(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
-         B_list(1) = 1.0_pr
-         do B_list_iterator=2,size(B_list)
-            constraintB = B_list(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
             B_list(B_list_iterator) = constraintB
          end do
       else
@@ -150,6 +159,11 @@
             B_list(B_list_iterator) = constraintB
          end do
       end if
+
+      do B_list_iterator=1,size(B_list)
+         if(rank==0) print*, "B",B_list_iterator, "=", B_list(B_list_iterator)
+      end do
+
 
       !=========================================================
       ! Loop over different values of constraint B values

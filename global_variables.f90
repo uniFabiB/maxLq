@@ -42,12 +42,18 @@ MODULE global_variables
   real(pr) :: checkAverageTolerance = 1.0e-3                ! tolerance such that velocity < checkAverageTolerance*constraintB 
                                                                         !is still be considered average free     
 
+
+  logical :: standardParams
+
   LOGICAL :: kappaTest = .true.
   LOGICAL :: toDealias = .true.
   LOGICAL :: mnbra_calcSaveAllJvalues = .false.              ! calculates J(u+tau d) for "all" tau values to get an idea of the shape of J(tau)
   integer :: save_uvecEveryXiteration                        ! <1 for never   now automatically in initialize: n256 -> 1000, n512 -> 100, n1024 -> 10
-  integer :: save_scalarFieldsEveryXiteration = -1           ! <1 for never
+  integer :: save_dEveryXiteration = -1                      ! <1 for never   default = -1
+  integer :: save_gradL2EveryXiteration = -1                 ! <1 for never   default = -1
+  integer :: save_scalarFieldsEveryXiteration = -1           ! <1 for never   default = -1
   integer :: save_spectraEveryXiteration                     ! <1 for never   now automatically in initialize: basically save_uvecEvery/10
+  integer :: kappaTestEveryXiteration = -1                   ! <1 for never   default = -1
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
   LOGICAL :: save_diag_fields_values = .false.

@@ -13,7 +13,7 @@ SUBROUTINE initialize
    !!! set optim_tol !!!
    ! original 1.0e-8_pr, me for long time 1.0e-7_pr
    if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-4_pr
+      OPTIM_TOL = 1.0e-7_pr
    else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
       OPTIM_TOL = 1.0e-5_pr
    else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
@@ -31,15 +31,15 @@ SUBROUTINE initialize
 
    !!! setting up how often to save the vector field an spectral data
    if(resol==256) then
-      save_uvecEveryXiteration = 1000
+      save_uvecEveryXiteration = 1000     ! default = 1000
    elseif(resol==512) then
-      save_uvecEveryXiteration = 100
+      save_uvecEveryXiteration = 100      ! default = 100
    elseif(resol==1024) then
-      save_uvecEveryXiteration = 25
+      save_uvecEveryXiteration = 50      ! default = 100
    else
-      save_uvecEveryXiteration = 100
+      save_uvecEveryXiteration = 100      ! default = 100
    end if
-   save_spectraEveryXiteration = save_uvecEveryXiteration/10
+   save_spectraEveryXiteration = save_uvecEveryXiteration/10       ! default = save_uvecEveryXiteration/10
 
 
 

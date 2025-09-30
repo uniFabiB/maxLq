@@ -6,86 +6,41 @@ MODULE data_ops
         !==============================
         ! SAVE CONTROL VARIABLE
         !==============================
-        SUBROUTINE save_Ctrl(U, myindex, mysystem)
-          USE global_variables
-          IMPLICIT NONE
-  
-          REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: U
-          INTEGER, INTENT(IN) :: myindex
-          CHARACTER(len=*), INTENT(IN) :: mysystem
+        SUBROUTINE save_field(field, fieldName)
+         USE global_variables
+         IMPLICIT NONE
 
-          REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: fx, fy, fz
+         REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: field
+         CHARACTER(len=*), INTENT(IN) :: fieldName
 
-          CHARACTER(2) :: K0txt
-          CHARACTER(2) :: E0txt
-          CHARACTER(2) :: IGtxt
-          character(10) :: tempResolTxt
-          character(len=:), allocatable :: resolTxt
-!          CHARACTER(2) :: WEIGHTtxt   ! Newly added on April 24, 2017
-          CHARACTER(200) :: filename
-      
-          ALLOCATE( fx(1:n(1),1:n(2),1:local_N) )
-          ALLOCATE( fy(1:n(1),1:n(2),1:local_N) )
-          ALLOCATE( fz(1:n(1),1:n(2),1:local_N) )
+         REAL(pr), DIMENSION(:,:,:), ALLOCATABLE :: fx, fy, fz
 
-          WRITE(K0txt, '(i2.2)') K0_index
-          WRITE(E0txt, '(i2.2)') E0_index
-          WRITE(IGtxt, '(i2.2)') iguess
-          WRITE(tempResolTxt, '(i10)') resol
+         character(10) :: tempResolTxt
+         character(len=:), allocatable :: resolTxt
+         character(len=:), allocatable :: filename
+   
+         ALLOCATE( fx(1:n(1),1:n(2),1:local_N) )
+         ALLOCATE( fy(1:n(1),1:n(2),1:local_N) )
+         ALLOCATE( fz(1:n(1),1:n(2),1:local_N) )
 
-          resolTxt = trim(adjustl(tempResolTxt))
-          
+         WRITE(tempResolTxt, '(i10)') resol
 
-          SELECT CASE (mysystem)
-            case ("maxdLqdt")
-               filename = ncDir//"u0"//"_q"//lebesgueQTxt//"_n"//resolTxt//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
-               fx = U(:,:,:,1)
-               fy = U(:,:,:,2)
-               fz = U(:,:,:,3)
-               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
-            case ("maxdLqdt_result")
-               filename = ncDir//"u_result"//"_q"//lebesgueQTxt//"_n"//resolTxt//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
-               fx = U(:,:,:,1)
-               fy = U(:,:,:,2)
-               fz = U(:,:,:,3)
-               CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
-            CASE ("maxdEdt") 
-!              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-              filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
-              fx = U(:,:,:,1)
-              fy = U(:,:,:,2)
-              fz = U(:,:,:,3)
-              CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
+         resolTxt = trim(adjustl(tempResolTxt))
+         
 
-!              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-              !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
-              !fx = W(:,:,:,1)
-              !fy = W(:,:,:,2)
-              !fz = W(:,:,:,3)
-!              CALL save_field_R3toR3_ncdf(fx,fy,fz,"Wx", "Wy", "Wz", filename, "netCDF")
+         filename = ncDir//fieldName//"_q"//lebesgueQTxt//"_n"//resolTxt//"_B"//bIterTxt//"_iter"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
 
-            CASE ("FixK0E0")
-!              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_FixK0E0_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"
-              filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_u0.nc"   ! Newly added on May 8, 2017
-              fx = U(:,:,:,1)
-              fy = U(:,:,:,2)
-              fz = U(:,:,:,3)
-              CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
+         fx = field(:,:,:,1)
+         fy = field(:,:,:,2)
+         fz = field(:,:,:,3)
+         CALL save_field_R3toR3_ncdf(fx,fy,fz,"Ux", "Uy", "Uz", filename, "netCDF")
 
-!              filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_FixK0E0_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"
-              !filename = HomeDir//"_E"//E0txt//"_IG"//IGtxt//"_w0.nc"   ! Newly added on May 8, 2017
-              !fx = W(:,:,:,1)
-              !fy = W(:,:,:,2)
-              !fz = W(:,:,:,3)
-              !CALL save_field_R3toR3_ncdf(fx,fy,fz,"Wx", "Wy", "Wz", filename, "netCDF")
-
-          END SELECT 
-          DEALLOCATE( fx )
-          DEALLOCATE( fy )
-          DEALLOCATE( fz )
+         DEALLOCATE( fx )
+         DEALLOCATE( fy )
+         DEALLOCATE( fz )
 
 
-        END SUBROUTINE save_Ctrl
+        END SUBROUTINE save_field
 
         !============================
         !    SAVE CONTROL VELOCITY
@@ -1161,7 +1116,7 @@ MODULE data_ops
 
 
           successful = .true.
-          if(rank==0) print*, "loading file ", filename
+          if(rank==0) print*, achar(9), achar(9), achar(9), "loading file ", filename
 
           IF (parallel_data) THEN
              ALLOCATE( local_f(1:n(1),1:n(2),1:local_N) )
@@ -1391,37 +1346,48 @@ MODULE data_ops
         !============================================
         ! Save results from kappa test
         !============================================
-        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa_adj, kappa, adj_factor, myindex, identifier)
+        SUBROUTINE save_kappa_test(eps, inner_prod, deltaJ, kappa, kappa_adj, adj_factor, myindex, identifier, useAdjustedKappaTest)
           USE global_variables
           IMPLICIT NONE
 
           REAL(pr), INTENT(IN) :: eps, kappa_adj, kappa, adj_factor, inner_prod, deltaJ
           INTEGER, INTENT(IN) :: myindex
           CHARACTER(len=*), INTENT(IN) :: identifier
-          CHARACTER(99) :: filePath
-          character(10) :: dealiasing_str
+          character(len=:), allocatable :: kappaDir
+          character(len=:), allocatable :: filePath
+          logical, intent(in) :: useAdjustedKappaTest
 
-          if(toDealias) then
-            dealiasing_str = "deal_"
-          else
-            dealiasing_str = "noDeal_"
-          end if
+          
+          
+          kappaDir = constraintDir//"kappaTest/"
+          call createDirectoryIfNonExistent(kappaDir)
+         
 
-
-!          filename = "/scratch/yund0050/MultiObjective_095_01/KappaTest/"//mysystem//"_E"//E0txt//"_kappa_vars.dat"
-          !filePath = ConstraintDir//"KappaTest"//trim(dealiasing_str)
-          filePath = ConstraintDir//"kappa"//"-B"//bIterTxt//"-"//identifier//".dat"
+          filePath = kappaDir//"kappa"//"_B"//bIterTxt//"_"//identifier//".dat"
           filePath=trim(filePath)
-          IF (myindex==1) THEN 
-             OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
-             WRITE(10, "(9 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa_adj", "LOG10|kap_adj-1|", "kappa", "LOG10|kap-1|", "adj_factor"
-             WRITE(10, "(9 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr)), kappa, LOG10(ABS(kappa - 1.0_pr)), adj_factor
-             CLOSE(10)
-          ELSE
-             OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-             WRITE(10, "(9 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr)), kappa, LOG10(ABS(kappa - 1.0_pr)), adj_factor
-             CLOSE(10)
-          END IF 
+
+          if(rank==0) then
+            if(useAdjustedKappaTest) then
+              IF (myindex==1) THEN 
+                 OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
+                 WRITE(10, "(9 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa_adj", "LOG10|kap_adj-1|", "kappa", "LOG10|kap-1|", "adj_factor"
+                 CLOSE(10)
+              END IF 
+              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+              WRITE(10, "(9 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr)), kappa, LOG10(ABS(kappa - 1.0_pr)), adj_factor
+              CLOSE(10)
+            else
+              IF (myindex==1) THEN 
+                 OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'REPLACE')
+                 WRITE(10, "(6 G20.12)") "eps", "deltaJ", "deltaJ/eps", "inner_prod", "kappa", "LOG10|kap-1|"
+                 WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+                 CLOSE(10)
+              END IF 
+              OPEN (10, FILE = filePath, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+              WRITE(10, "(6 ES20.12)") eps, deltaJ, deltaJ/eps, inner_prod, kappa, LOG10(ABS(kappa - 1.0_pr))
+              CLOSE(10)
+            end if
+          end if
  
         END SUBROUTINE save_kappa_test
 

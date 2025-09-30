@@ -16,11 +16,12 @@ module optimization
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
          logical :: optimizationSuccessful
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, HildertOrderS, gradJ0norm
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, HildertOrderS, gradJ0norm, bestKappa
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
-         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, while_flag
+         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, while_flag, mytime, iterationTime, averageTimePerIteration
+         integer, dimension(:), allocatable :: timeArray, tempTimeArray
 
          ALLOCATE( uvec0(1:n(1),1:n(2),1:local_N,1:3) )
 
@@ -63,7 +64,7 @@ module optimization
          !====================================
          if(kappaTest) then
             gradJ1 = GradL2ForLq(Uvec)
-            call kappa_test(uvec, gradJ1, .true., "maxdLqdt", "initial_grad_L2", "L2")  
+            call kappa_test(uvec, gradJ1, .false., "maxdLqdt", "initial_grad_L2", "L2", .true.)  
          end if
 
          !======================================================
@@ -112,6 +113,9 @@ module optimization
 
          !lambda1 = 10.0_pr
 
+         mytime = time()
+         allocate( timeArray(0) )
+
          DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
             write(optimizationIterationTxt, '(i5.5)') iter
@@ -123,6 +127,9 @@ module optimization
             !======================================================
             if(rank==0 .and. verboseOptimization) print*, "calculating gradient"
             gradJ1 = GradL2ForLq(Uvec)
+            if(kappaTestEveryXiteration>0) then
+               if(modulo(iter, kappaTestEveryXiteration) == 0) call kappa_test(uvec, gradJ1, .false., "maxdLqdt", "gradL2_iter"//optimizationIterationTxt, "L2", .false.)
+            end if
             hildertOrderS = (3.0_pr/2.0_pr)-(1.0_pr/lebesgueQ)
             call HilbertGradient(gradJ1, hildertOrderS)
             
@@ -300,7 +307,7 @@ module optimization
                vecTransported_GradJused0 = gradJused1
                vecTransported_d0 = d1
             end if
-            if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)")  
+            !if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)", .true.)
 
             !======================================
             ! update u
@@ -351,20 +358,39 @@ module optimization
                   if(modulo(iter, save_scalarFieldsEveryXiteration) == 0) call diagnosticScalars(Uvec)
                end if
                if(save_uvecEveryXiteration>0) then
-                  if(modulo(iter, save_uvecEveryXiteration) == 0) call save_Ctrl(Uvec, iter, "maxdLqdt_result")
+                  if(modulo(iter, save_uvecEveryXiteration) == 0) call save_field(Uvec, "u_result")
+               end if
+               if(save_dEveryXiteration>0) then
+                  if(modulo(iter, save_dEveryXiteration) == 0) call save_field(d1, "d_used")
+               end if
+               if(save_gradL2EveryXiteration>0) then
+                  if(modulo(iter, save_gradL2EveryXiteration) == 0) call save_field(gradJ1, "gradL2_used")
                end if
             END IF
             CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+            
 
 
+            !===============================
+            ! TIMING
+            !===============================
+            tempTimeArray = timeArray
+            deallocate (timeArray)
+            allocate( timeArray(size(tempTimeArray)+1) )
+            timeArray(1:size(tempTimeArray)) = tempTimeArray(1:size(tempTimeArray))
+            iterationTime = time() - mytime
+            mytime = time()
+            timeArray(size(tempTimeArray)+1) = iterationTime
+            deallocate(tempTimeArray)
+            averageTimePerIteration = sum(timeArray)/size(timeArray)
             !===============================
             ! PRINT RESULTS
             !===============================
-            if(rank==0) print '(7A16, A12, A7, A12, 2A16)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)"
+            if(rank==0) print '(7A16, A12, A7, A12, 2A16, 2A12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)", "sec/iter", "av sec/iter"
             test = calc_global_Lq_norm(Uvec)
             testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
             testVec(1) = abs(testVec(2)) + abs(testVec(3))
-            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7, 2I12)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1), iterationTime, averageTimePerIteration
 
 
             !===============================
@@ -392,15 +418,15 @@ module optimization
             end if
             if (kappaTest) then
                !CALL kappa_test(uvec0, gradJ1, "end_gradJ1", "H_l^(3/2-1/q)")
-               CALL kappa_test(uvec0, d1, .true.,"maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
+               CALL kappa_test(uvec0, d1, .true.,"maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
             end if
          else
             optimizationSuccessful = .false.
             if(rank==0) then
                print*, "optimization terminated unsuccessful", iter, MAX_ITER
             end if
-            CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)")
-            CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)")
+            CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
+            CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)", .true.)
          end if
 
 
@@ -408,11 +434,13 @@ module optimization
             optimizationIterationTxt = "end"
             if(rank==0 .and. verboseOptimization) print*, "saving data optim"
             CALL diagnosticScalars(Uvec)
-            CALL save_Ctrl(Uvec, iter, "maxdLqdt_result")
+            CALL save_field(Uvec, "u_result")
+            if(save_dEveryXiteration>0) call save_field(d1, "d_used")
+            if(save_gradL2EveryXiteration>0) call save_field(gradJ1, "gradL2_used")
             CALL calculateSaveSpectrum(uvec,"uvec")
             CALL calculateSaveSpectrum(gradJproj,"gradJproj")
-            CALL calculateSaveSpectrum(gradJ0,"gradJ")
-            CALL calculateSaveSpectrum(d0,"d")
+            CALL calculateSaveSpectrum(gradJ1,"gradJ")
+            CALL calculateSaveSpectrum(d1,"d")
          END IF
 
          CALL optim_msg_handle(1)
@@ -882,9 +910,9 @@ module optimization
 
 
    !============================================
-   ! Perform kappa_test
+   ! Perform kappa_test, returns best kappa
    !============================================
-   SUBROUTINE kappa_test(phi, gradJ, useAdjustedKappaTest, mysystem, nameOfKappaTest, inner_product_space)
+   SUBROUTINE kappa_test(phi, gradJ, useAdjustedKappaTest, mysystem, nameOfKappaTest, inner_product_space, printResultToTerminal)
       USE global_variables
       USE function_ops
       USE data_ops
@@ -892,21 +920,19 @@ module optimization
       use fftwfunction
       IMPLICIT NONE
 
-      !REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
       CHARACTER(len=*), INTENT(IN) :: mysystem
-      logical, intent(in) :: useAdjustedKappaTest
+      logical, intent(in) :: useAdjustedKappaTest, printResultToTerminal
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: phi
       REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:3), INTENT(IN) :: gradJ
-      !REAL(pr), INTENT(IN) :: J0
       REAL(pr) :: J0
       CHARACTER(len=*), INTENT(IN) :: nameOfKappaTest, inner_product_space
-      REAL(pr) :: myepsilon, kappa, kappa_org, deltaJ
+      REAL(pr) :: myepsilon, kappa, kappa_org, kappa_adj, deltaJ, bestKappa
       real(pr), dimension(:,:), allocatable :: kappaArray
       REAL(pr), DIMENSION(:,:,:,:), ALLOCATABLE :: phi_pert, phi_bar
       REAL(pr) :: myexp, J1, innerProd
       REAL(pr), DIMENSION(1:3) :: dx
       integer :: kappaTestSize = 16
-      INTEGER :: ii, jj
+      INTEGER :: ii, jj, bestii
       
       ! factor adjusted kappa
       integer :: iAdjMin, adjAvgSize
@@ -925,17 +951,13 @@ module optimization
 
 
       IF (rank==0) THEN
-         print*, "kappaTest ", nameOfKappaTest
+         print '(2A16,A20)', achar(9), "kappaTest", nameOfKappaTest
          !print*, "q", lebesgueQ
       END If
       WRITE(tempStr,'(F3.1)') lebesgueQ-int(lebesgueQ)              ! might result in rounding errors for 1.999999999999
       WRITE(strLebesgueQ,'(I2.2,a2)') int(lebesgueQ), tempStr(2:)
       
    
-      IF (rank==0) THEN
-      !   print*, "warning, fixing lq norm of uvec"
-      END If
-      !call Fix_Lq(uvec, 1.0_pr)
 
 
       WRITE(K0txt,'(i2.2)') K0_index
@@ -959,9 +981,8 @@ module optimization
       phiPertText = trim(phiPertText)
 
       call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)
-      !if(rank==0) print*, "kappa test loadSuccessful ", loadSuccessful
       if(.not. loadSuccessful) then
-         if(rank==0) print*, "WARNING: could not load 'kappa_test_pert' ", trim(phiPertText), " generating new 'random poly' perturbation"
+         if(rank==0) print*, achar(9), achar(9), "WARNING: could not load 'kappa_test_pert' ", trim(phiPertText), " generating new 'random poly' perturbation"
          phiPertText = "create-random-poly-b"
          phiPertText = trim(phiPertText)
          call kappa_test_pert(phi_pert, phiPertText, -5.0_pr, 0.0_pr, 0.0_pr, loadSuccessful)         
@@ -969,16 +990,14 @@ module optimization
 
       
 
-      !call calculateSaveSpectrum(phi, "phi")
-      !call calculateSaveSpectrum(phi_pert, trim("phiPert-"//phiPertText))
-      !call calculateSaveSpectrum(gradJ, "gradJ"//"-q-"//strLebesgueQ)
-
 
       innerProd = global_summed_field_inner_product(gradJ, phi_pert, inner_product_space)
 
 
       J0 = eval_J(phi, mysystem)
       allocate( kappaArray(1:kappaTestSize,1:5) )
+
+      bestKappa=huge(pr)
 
       DO ii=1,kappaTestSize
          
@@ -994,13 +1013,25 @@ module optimization
 
          kappa = (J1-J0)/(myepsilon*innerProd)
 
+         if(max(abs(kappa-1.0_pr),abs(1.0_pr/kappa-1.0_pr))<max(abs(bestKappa-1.0_pr),abs(1.0_pr/kappa-1.0_pr))) then
+            bestKappa=kappa
+            bestii = ii
+         end if
+
          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
 
          kappaArray(ii,:) = (/myepsilon, innerProd, deltaJ, kappa, kappa/)
 
-         if (rank==0) print*, achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
+         if (rank==0 .and. printResultToTerminal) print*, achar(9), achar(9), achar(9), achar(9), "kappa test", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
 
       END DO
+
+      if (rank==0 .and. printResultToTerminal) print*, achar(9), achar(9), achar(9), achar(9), "___________"
+      if (rank==0 .and. printResultToTerminal) print*, achar(9), achar(9), achar(9), achar(9), "best kappa", bestii, "/", kappaTestSize, bestkappa, LOG10(ABS(bestkappa - 1.0_pr))
+
+
+
+      if(rank==0 .and. .not.printResultToTerminal .and. .not.useAdjustedKappaTest)  print*, achar(9), achar(9), achar(9), "bestKappa", bestKappa, "log10|bestkappa-1|", log10(abs(bestKappa-1.0_pr))
 
 
       !!!!! CALCULATE ADJUSTED KAPPA TEST !!!!!
@@ -1010,11 +1041,11 @@ module optimization
       iAdjMin = 1
       adjAvgSize = 4
       fracAdjMin = 9999
-      if(rank==0) print*, ""
+      if(rank==0 .and. printResultToTerminal .and. useAdjustedKappaTest) print*, ""
       do ii=1,kappaTestSize-(adjAvgSize-1)-1
          frac = 0.0_pr
          do jj=0,adjAvgSize-1
-            frac = frac + abs(1-kappaArray(ii+jj,4)/kappaArray(ii+jj+1,4))
+            frac = frac + abs(1-kappaArray(ii+jj,5)/kappaArray(ii+jj+1,5))
          end do
          if(frac<fracAdjMin) then
             fracAdjMin = frac
@@ -1025,30 +1056,28 @@ module optimization
       ! best guess for adjusting
       frac = 1.0_pr
       do jj=0,adjAvgSize-1
-         frac = frac*abs(kappaArray(iAdjMin+jj,4))
+         frac = frac*abs(kappaArray(iAdjMin+jj,5))
       end do
-      frac = sign( (frac)**(1.0_pr/(adjAvgSize)) , kappaArray(iAdjMin,4) )
-      kappaArray(:,4) = kappaArray(:,4)/frac
+      frac = sign( (frac)**(1.0_pr/(adjAvgSize)) , kappaArray(iAdjMin,5) )
+      kappaArray(:,5) = kappaArray(:,5)/frac
 
 
       CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
       
       
 
-      if(rank==0) then
-         DO ii=1,kappaTestSize
-            !(/myepsilon, kappa/) = kappaArray(ii,:) !WHY FORTRAN CAN'T I DO SOMETHING LIKE THIS!!!
-            myepsilon = kappaArray(ii,1)
-            innerProd = kappaArray(ii,2)
-            deltaJ = kappaArray(ii,3)
-            kappa = kappaArray(ii,4)
-            kappa_org = kappaArray(ii,5)
-            if(useAdjustedKappaTest) then
-               print*, achar(9), achar(9), "kappa test adjusted", ii, "/", kappaTestSize, kappa, LOG10(ABS(kappa - 1.0_pr))
-               CALL save_kappa_test(myepsilon, innerProd, deltaJ, kappa, kappa_org, frac, ii, nameOfKappaTest)
-            end if
-         END DO
-      end if
+      DO ii=1,kappaTestSize
+         !(/myepsilon, kappa/) = kappaArray(ii,:) !WHY FORTRAN CAN'T I DO SOMETHING LIKE THIS!!!
+         myepsilon = kappaArray(ii,1)
+         innerProd = kappaArray(ii,2)
+         deltaJ = kappaArray(ii,3)
+         kappa_org = kappaArray(ii,4)
+         kappa_adj = kappaArray(ii,5)
+         if(useAdjustedKappaTest) then
+            if(rank==0 .and. printResultToTerminal .and. useAdjustedKappaTest) print*, achar(9), achar(9), achar(9), achar(9), "kappa test adjusted", ii, "/", kappaTestSize, kappa_adj, LOG10(ABS(kappa_adj - 1.0_pr))
+         end if
+         CALL save_kappa_test(myepsilon, innerProd, deltaJ, kappa_org, kappa_adj, frac, ii, nameOfKappaTest, useAdjustedKappaTest)
+      END DO
 
       deallocate( kappaArray )
 

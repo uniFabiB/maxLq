@@ -16,7 +16,7 @@ module optimization
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
          logical :: optimizationSuccessful
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, test, alpha, HildertOrderS, gradJ0norm, bestKappa
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, uNorm, alpha, HildertOrderS, gradJ0norm, bestKappa, normGradJused1, normVecTransported_d0, normD1, test1, test2, test3
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
@@ -87,15 +87,20 @@ module optimization
          tau0Init = 10.0_pr**(2.0_pr)
          tau0 = tau0Init
          tau1 = tau0Init
+
+         normGradJused1 = 0.0_pr
+         normVecTransported_d0 = 0.0_pr
+         normD1 = 0.0_pr
+
          !===============================
          ! PRINT INITIAL VALUES
          !===============================
          if(rank==0) print*, iter, "iteration"
          if(rank==0) print '(7A16, A12, A7, A12, 2A16)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)"
-         test = calc_global_Lq_norm(Uvec)
+         uNorm = calc_global_Lq_norm(Uvec)
          testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
          testVec(1) = abs(testVec(2)) + abs(testVec(3))
-         if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1)
+         if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, uNorm, testVec(2)/testVec(1), testVec(3)/testVec(1)
 
 
          IF (save_diag_Optim) THEN
@@ -160,18 +165,18 @@ module optimization
             gradJproj(:,:,:,:) = gradJ1(:,:,:,:) - alpha*normalHs(:,:,:,:)
             !call divAvg_free(gradJproj)
 
-            test = abs(global_summed_field_inner_product(gradJproj, normalHs, "H_l^(3/2-1/q)")/global_summed_field_inner_product(gradJproj+normalHs,gradJproj+normalHs, "H_l^(3/2-1/q)"))
-            if(test>checkNormalTolerance) then
-               if(rank==0) print*, "WARNING", achar(9), achar(9), "abs(inner(gradJproj,normalHs)/||gradJproj+normalHs||^2)", test, ">", checkNormalTolerance, "should be 0"
+            test1 = abs(global_summed_field_inner_product(gradJproj, normalHs, "H_l^(3/2-1/q)")/global_summed_field_inner_product(gradJproj+normalHs,gradJproj+normalHs, "H_l^(3/2-1/q)"))
+            if(test1>checkNormalTolerance) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), "abs(inner(gradJproj,normalHs)/||gradJproj+normalHs||^2)", test1, ">", checkNormalTolerance, "should be 0"
                call optim_msg_handle(42)
                !call kappa_test(uvec, normalHs, .false., "||u||_q", "projection normal", "H_l^(3/2-1/q)")
             !else
                !if(iter == 1 .and. kappaTest) call kappa_test(uvec, normalHs, .true., "||u||_q", "projection normal", "H_l^(3/2-1/q)")       !kappa test for projection onto tangent space normal = derivative
             end if
             call divergence(gradJproj, f_scalar)
-            test = global_inner_product(f_scalar,f_scalar,"L2")/global_summed_field_inner_product(gradJproj,gradJproj,"H_l^(3/2-1/q)")
-            if (test>checkDivergenceTolerance) then
-               if(rank==0) print*, "WARNING", achar(9), achar(9), "||div(gradJproj)||_2^2/||gradJproj||_H^s", test, ">", checkDivergenceTolerance, "should be 0"
+            test1 = global_inner_product(f_scalar,f_scalar,"L2")/global_summed_field_inner_product(gradJproj,gradJproj,"H_l^(3/2-1/q)")
+            if (test1>checkDivergenceTolerance) then
+               if(rank==0) print*, "WARNING", achar(9), achar(9), "||div(gradJproj)||_2^2/||gradJproj||_H^s", test1, ">", checkDivergenceTolerance, "should be 0"
                call optim_msg_handle(43)
             end if
 
@@ -187,6 +192,15 @@ module optimization
                gradJused1(:,:,:,:) = gradJ1(:,:,:,:)
             end if
 
+
+            !======================================================
+            ! normalize gradJ = || u ||_H^s/|| gradJ ||_H^s * gradJ
+            !======================================================
+            if(normalizeGradient) then
+               if(rank==0 .and. verboseOptimization) print*, "normalize gradient"
+               gradJused1(:,:,:,:) =  sqrt(global_summed_field_inner_product(uvec,uvec,"H_l^(3/2-1/q)")/global_summed_field_inner_product(gradJused1,gradJused1,"H_l^(3/2-1/q)")) * gradJused1(:,:,:,:)
+            end if
+
             !======================================================
             ! CONJUGATE GRADIENT
             !======================================================
@@ -195,10 +209,12 @@ module optimization
                !======================================================
                ! Calculate Momentum Term (Polak-Ribière)
                !======================================================
-               beta = global_summed_field_inner_product(gradJused1,gradJused1-vecTransported_d0,"H_l^(3/2-1/q)")       !!! d0 or usedgraj0??? (8.29) in absil et al
+               !beta = global_summed_field_inner_product(gradJused1,gradJused1-d0,"H_l^(3/2-1/q)")       !!! "old" d0 beta
+               !beta = global_summed_field_inner_product(gradJused1,gradJused1-gradJused0,"H_l^(3/2-1/q)")       !!! "middle new" usedgraj0 beta (or need just gradJ?)
+               beta = global_summed_field_inner_product(gradJused1,gradJused1-vecTransported_GradJused0,"H_l^(3/2-1/q)")       !!! "new" vecTransported_GradJused0 beta
                gradJ0norm = global_summed_field_inner_product(gradJused0,gradJused0,"H_l^(3/2-1/q)")
                !if(rank==0 .and. verboseOptimization) print*, "gradJ0norm", gradJ0norm
-               if(gradJ0norm<MACH_EPSILON) then
+               if(gradJ0norm<MACH_EPSILON .or. beta<MACH_EPSILON) then
                   beta = 0.0_pr
                else
                   beta = beta/gradJ0norm
@@ -207,23 +223,17 @@ module optimization
                if(modulo(iter,resetMomentumTermEveryXiterations) == 0) then
                   if(rank==0) print*, achar(9), "resetting momentum term"
                   beta = 0.0_pr
-               end if
+               end if               
                
                d1(:,:,:,:) = gradJused1(:,:,:,:) + beta*vecTransported_d0(:,:,:,:)
             else
                d1(:,:,:,:) = gradJused1(:,:,:,:)
             end if
 
+            normGradJused1 = sqrt(global_summed_field_inner_product(gradJused1,gradJused1,"H_l^(3/2-1/q)"))
+            normVecTransported_d0 = sqrt(global_summed_field_inner_product(vecTransported_d0,vecTransported_d0,"H_l^(3/2-1/q)"))
+            normD1 = sqrt(global_summed_field_inner_product(d1,d1,"H_l^(3/2-1/q)"))
 
-            !======================================================
-            ! normalize d = || u ||_H^s/|| d ||_H^s d
-            ! so that tau measures ratio between old and new
-            !======================================================
-            
-            if(normalizeDirection) then
-               if(rank==0 .and. verboseOptimization) print*, "normalize direction"
-               d1(:,:,:,:) =  sqrt(global_summed_field_inner_product(uvec,uvec,"H_l^(3/2-1/q)")/global_summed_field_inner_product(d1,d1,"H_l^(3/2-1/q)")) * d1(:,:,:,:)
-            end if
 
             if(rank==0 .and. verboseOptimization) print*, "check average zero d1"
             testVec = calc0thFourierModes(d1)
@@ -303,10 +313,16 @@ module optimization
                if(rank==0 .and. verboseOptimization) print*, "update vector transport"
                vecTransported_GradJused0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, gradJused1)
                vecTransported_d0 = vectorTransport(Uvec, lebesgueQ, constraintB, tau1*d1, d1)
+
+               !test2 = sqrt(global_summed_field_inner_product(d1,d1,"H_l^(3/2-1/q)"))
+               !test3 = sqrt(global_summed_field_inner_product(vecTransported_d0,vecTransported_d0,"H_l^(3/2-1/q)"))
+
+               !if(rank==0) print*, "|| d1 ||", test2, "|| vec d1 ||", test3
             else
                vecTransported_GradJused0 = gradJused1
                vecTransported_d0 = d1
             end if
+
             !if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)", .true.)
 
             !======================================
@@ -383,14 +399,18 @@ module optimization
             timeArray(size(tempTimeArray)+1) = iterationTime
             deallocate(tempTimeArray)
             averageTimePerIteration = sum(timeArray)/size(timeArray)
+
+
+
             !===============================
             ! PRINT RESULTS
             !===============================
-            if(rank==0) print '(7A16, A12, A7, A12, 2A16, 2A12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)", "sec/iter", "av sec/iter"
-            test = calc_global_Lq_norm(Uvec)
+            if(rank==0) print '(7A16, A12, A7, A12, 2A16, 7A12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)", "sec/iter", "av sec/iter", "||grad J||", "beta", "||vec d0||", "||d1||"
+            uNorm = calc_global_Lq_norm(Uvec)
+            test1 = global_summed_field_inner_product(uvec,d0,"L2")/(sqrt(global_summed_field_inner_product(uvec,uvec,"L2"))*sqrt(global_summed_field_inner_product(d0,d0,"L2")))
             testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
             testVec(1) = abs(testVec(2)) + abs(testVec(3))
-            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7, 2I12)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, test, testVec(2)/testVec(1), testVec(3)/testVec(1), iterationTime, averageTimePerIteration
+            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7, 2I12, 5ES12.3)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, uNorm, testVec(2)/testVec(1), testVec(3)/testVec(1), iterationTime, averageTimePerIteration, normGradJused1, beta, normVecTransported_d0, normD1
 
 
             !===============================
@@ -402,8 +422,6 @@ module optimization
             gradJused0 = gradJused1
             tau0 = tau1
             d0 = d1
-
-
 
             !if(lambda1>0.1) lambda1=lambda1/1.1
 

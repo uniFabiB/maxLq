@@ -1568,6 +1568,7 @@ module function_ops
          real(pr), intent(in) :: B, q
          real(pr) :: Lq_norm, intResult
          integer :: ii
+         !real(pr) :: test1, test2, test3, test4, test5
 
          allocate( uPlusEta(1:n(1),1:n(2),1:local_N,1:3) )
          allocate( aux(1:n(1),1:n(2),1:local_N,1:3) )
@@ -1589,6 +1590,21 @@ module function_ops
          resultVec(:,:,:,:) = xi(:,:,:,:) - Lq_norm**(-q)*intResult*uPlusEta(:,:,:,:)  !                 xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi
          resultVec(:,:,:,:) = B/Lq_norm*resultVec(:,:,:,:)                                ! B/||u+eta||_q [ xi-(u+eta)||u+eta||_q^{-q} \int |u+eta|^{q-2}(u+eta)cdot xi ]
 
+
+         !test1 = Lq_norm**(-q)*intResult
+         !test2 = sqrt(global_summed_field_inner_product(u,u,"H_l^(3/2-1/q)"))
+         !test3 = sqrt(global_summed_field_inner_product(eta,eta,"H_l^(3/2-1/q)"))
+         !test4 = sqrt(global_summed_field_inner_product(uPlusEta,uPlusEta,"H_l^(3/2-1/q)"))
+         !test5 = sqrt(global_summed_field_inner_product(xi,xi,"H_l^(3/2-1/q)"))
+
+         !if(rank == 0) then
+         !   print*, "int |u+eta|^{q-2}(u+eta)cdot xi / ||u+eta||_q^q", test1
+         !   print*, "|| u ||_H", test2
+         !   print*, "|| eta ||_H", test3
+         !   print*, "|| uPlusEta ||_H", test4
+         !   print*, "|| xi ||_H", test5
+         !end if
+         
          deallocate(uPlusEta)
          deallocate(aux)
          deallocate(uPlusEta_Qm2)

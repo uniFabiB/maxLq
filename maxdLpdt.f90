@@ -57,8 +57,8 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_0927_q4_n1024_B018_iterend.nc"
-         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
+         loadTempFunctionName = "u_result_1019_q5_n512_B018_iter00600.nc"
+         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
 
 
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
@@ -73,9 +73,9 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 9.0_pr
-         resol = 128
-         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
+         lebesgueQ = 3.9_pr
+         resol = 512
+         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
 
          loadTempFunctionName = "iguess00"      ! allocate string resources
          write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
@@ -102,6 +102,10 @@
             save_dEveryXiteration = 10
             save_gradL2EveryXiteration = 10
             save_spectraEveryXiteration = 1
+         end if
+
+         if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
+            OPTIM_TOL = 1.0e-6_pr
          end if
       end if
 

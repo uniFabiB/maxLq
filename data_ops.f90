@@ -201,7 +201,7 @@ MODULE data_ops
                write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
                write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry
                write(10, "(A20)") " "
-               write(10, "(A20, G40.12)") "normalizeDirection", normalizeDirection
+               write(10, "(A20, G40.12)") "normalizeGradient", normalizeGradient
                write(10, "(A20, G40.12)") "use_e_u_auto_for_q_less_4", use_e_u_auto_for_q_less_4
                write(10, "(A20, G40.12)") "use_e_u_instead_of_uqMinus4", use_e_u_instead_of_uqMinus4
                write(10, "(A20, G40.12)") "dealiase_if_mult_by_e_u", dealiase_if_mult_by_e_u

@@ -19,7 +19,7 @@ MODULE global_variables
   logical :: useRiemannianGeometry = .true.
   integer :: resetMomentumTermEveryXiterations = 25                 ! <1 = never
 
-  logical :: normalizeDirection = .true.                  ! default = .true.
+  logical :: normalizeGradient = .true.                  ! default = .true.
   logical :: use_e_u_auto_for_q_less_4 = .true.           ! default = .true. ! automatically use e_u instead of u for q<4 and otherwise don't use e_u
   logical :: use_e_u_instead_of_uqMinus4 = .true.         ! default = either ! doesnt matter if use_e_u_auto is true ! calc |u|^{q-2} |e_u cdot partial_k u|^2 instead of |u|^{q-4} |u cdot partial_k u|^2 to avoid dividing by 0 
   logical :: dealiase_if_mult_by_e_u = .true.             ! default = .true. ! dealiase even if just multiplied by e_u

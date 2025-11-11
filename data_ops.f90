@@ -208,6 +208,7 @@ MODULE data_ops
                write(10, "(A20)") " "
                write(10, "(A20, G40.12)") "MAX_ITER", MAX_ITER
                write(10, "(A20, ES40.12)") "OPTIM_TOL", OPTIM_TOL
+               write(10, "(A20, I40)") "toleranceRollingAverageSize", toleranceRollingAverageSize
                write(10, "(A20, I40)") "resetMomentumTermEveryXiterations", resetMomentumTermEveryXiterations
                write(10, "(A20, ES40.12)") "MACH_EPSILON", MACH_EPSILON
                write(10, "(A20, ES40.12)") "TAU_MAX", TAU_MAX

@@ -16,12 +16,13 @@ module optimization
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
          logical :: optimizationSuccessful
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, uNorm, alpha, HildertOrderS, gradJ0norm, bestKappa, normGradJused1, normVecTransported_d0, normD1, test1, test2, test3
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, uNorm, alpha, HildertOrderS, gradJ0norm, bestKappa, normGradJused1, normVecTransported_d0, normD1, test1, test2, test3, averageImprovement
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
-         INTEGER :: iter, gradType, mnbrak_flag, FixConstr_flag, while_flag, mytime, iterationTime, averageTimePerIteration
+         INTEGER :: iter, startIter, gradType, mnbrak_flag, FixConstr_flag, while_flag, mytime, iterationTime, averageTimePerIteration
          integer, dimension(:), allocatable :: timeArray, tempTimeArray
+         real(pr), dimension(:), allocatable :: relativImprovementArray
 
          ALLOCATE( uvec0(1:n(1),1:n(2),1:local_N,1:3) )
 
@@ -46,6 +47,9 @@ module optimization
 
          ALLOCATE( diff_gradJ(1:n(1),1:n(2),1:local_N,1:3) )
          ALLOCATE( f_scalar(1:n(1),1:n(2),1:local_N) )
+
+         if(toleranceRollingAverageSize<1) toleranceRollingAverageSize = 1
+         allocate( relativImprovementArray(1:toleranceRollingAverageSize) )
 
          if(rank==0 .and. verboseOptimization) print*, "starting maxdLqdt"
          call initializeConstraintDirectory
@@ -75,10 +79,11 @@ module optimization
          J1 = 0.0_pr
          deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
          if(B_list_iterator==bIterOffset+1) then
-            iter = optimizationIterOffset
+            startIter = optimizationIterOffset
          else
-            iter = 0
+            startIter = 0
          end if
+         iter = startIter
          write(optimizationIterationTxt, '(i5.5)') iter
          d0 = 0.0_pr
          gradJused0 = 0.0_pr
@@ -91,6 +96,9 @@ module optimization
          normGradJused1 = 0.0_pr
          normVecTransported_d0 = 0.0_pr
          normD1 = 0.0_pr
+
+         relativImprovementArray = 0.0_pr
+         averageImprovement = 1.0_pr
 
          !===============================
          ! PRINT INITIAL VALUES
@@ -121,7 +129,7 @@ module optimization
          mytime = time()
          allocate( timeArray(0) )
 
-         DO WHILE ( (ABS(deltaJ) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
+         DO WHILE ( (ABS(averageImprovement) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
             write(optimizationIterationTxt, '(i5.5)') iter
             if(rank==0) print*, iter, "iteration"
@@ -423,15 +431,22 @@ module optimization
             tau0 = tau1
             d0 = d1
 
-            !if(lambda1>0.1) lambda1=lambda1/1.1
+
+            relativImprovementArray(2:) = relativImprovementArray(:toleranceRollingAverageSize-1)
+            if(iter == startIter + 1) then
+               relativImprovementArray(2:) = deltaJ
+            end if
+            relativImprovementArray(1) = deltaJ            
+            averageImprovement = sum(relativImprovementArray)/real(toleranceRollingAverageSize,pr)
 
          END DO
+
 
 
          if(iter<MAX_ITER .and. while_flag<1) then
             optimizationSuccessful = .true.
             if(rank==0) then
-               print*, "optimization terminated successful after", iter, "iterations"
+               print*, "optimization terminated successful after", iter, "iterations", ", last realtive changes ", relativImprovementArray(:)
                print*, " "
             end if
             if (kappaTest) then
@@ -441,7 +456,7 @@ module optimization
          else
             optimizationSuccessful = .false.
             if(rank==0) then
-               print*, "optimization terminated unsuccessful", iter, MAX_ITER
+               print*, "optimization terminated unsuccessful after ", iter, "iteration", ", max iter = ", MAX_ITER, ", last realtive changes ", relativImprovementArray(:)
             end if
             CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
             CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)", .true.)

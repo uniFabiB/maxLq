@@ -57,8 +57,8 @@
       iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_1019_q5_n512_B018_iter00600.nc"
-         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
+         loadTempFunctionName = "u_result_1110_q9_n512_B015_iterend.nc"
+         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
 
 
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
@@ -73,7 +73,7 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 3.9_pr
+         lebesgueQ = 5.0_pr
          resol = 512
          standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
 

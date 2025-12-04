@@ -110,19 +110,8 @@ MODULE data_ops
           REAL(pr), DIMENSION(1:n(1),1:n(2),1:local_N,1:numFields), INTENT(IN) :: myField
           INTEGER, INTENT(IN) :: numFields
           CHARACTER(len=*), INTENT(IN) :: myFieldNames
-
-          CHARACTER(2) :: K0txt
-          CHARACTER(2) :: E0txt
-          CHARACTER(2) :: IGtxt
-!          CHARACTER(2) :: WEIGHTtxt
           CHARACTER(200) :: filename
 
-          WRITE(K0txt, '(i2.2)') K0_index
-          WRITE(E0txt, '(i2.2)') E0_index
-          WRITE(IGtxt, '(i2.2)') iguess
-!          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
-              
-!          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagScalar.nc"
           filename = ncDir//"diagScalar"//"-B"//bIterTxt//"-iter-"//trim(optimizationIterationTxt)//".nc"   ! Newly added on May 8, 2017
 
           CALL save_field_R3toRn_ncdf(myfield, numFields, myFieldNames, filename)
@@ -133,40 +122,35 @@ MODULE data_ops
         !====================================
         ! SAVE GLOBAL DIAGNOSTICS OF FIELDS 
         !====================================
-        SUBROUTINE save_diagnosticFields_global(mysystem, K, E, Umax, Wmax, magUmax, magWmax, &
+        SUBROUTINE save_diagnosticFields_global(K, E, Umax, Wmax, magUmax, magWmax, &
                                                 H, maxHel, minHel, vorCoreData)
           USE global_variables  
+          use mpi
           IMPLICIT NONE
 
-          CHARACTER(len=*), INTENT(IN) :: mysystem
           REAL(pr), DIMENSION(1:3), INTENT(IN) :: K, E, Umax, Wmax, vorCoreData
           REAL(pr), INTENT(IN) :: magUmax, magWmax, H, maxHel, minHel
 
-          CHARACTER(2) :: K0txt
-          CHARACTER(2) :: E0txt
-          CHARACTER(2) :: IGtxt
-!          CHARACTER(2) :: WEIGHTtxt
           CHARACTER(200) :: filename
       
-          WRITE(K0txt, '(i2.2)') K0_index
-          WRITE(E0txt, '(i2.2)') E0_index
-          WRITE(IGtxt, '(i2.2)') iguess
-!          WRITE(WEIGHTtxt, '(i2.2)') int_WEIGHT
           
-!          filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_maxdEdt_K"//K0txt//"_E"//E0txt//"_IG"//IGtxt//"_diagFields.dat"
-          filename = ConstraintDir//"diagFields"//"-q"//lebesgueQTxt//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat"   ! Newly added on May 8, 2017
+          IF (rank==0) THEN
+               filename = ConstraintDir//"diagFieldValues"//"-q"//lebesgueQTxt//"-B"//bIterTxt//"-iter"//trim(optimizationIterationTxt)//".dat" 
 
-          OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-          WRITE(10,*) "# K, E, Umax, Wmax, magUmax, magWmax, H, MaxminH, MaxminS "
-          WRITE(10,*) "# x   y   z " 
-          WRITE(10, "(3 ES20.12)") K(1), K(2), K(3) 
-          WRITE(10, "(3 ES20.12)") E(1), E(2), E(3) 
-          WRITE(10, "(3 ES20.12)") Umax(1), Umax(2), Umax(3) 
-          WRITE(10, "(3 ES20.12)") Wmax(1), Wmax(2), Wmax(3)
-          WRITE(10, "(3 ES20.12)") magUmax, magWmax, H 
-          WRITE(10, "(2 ES20.12)") maxHel, minHel
-          WRITE(10, "(2 ES20.12)") vorCoreData(1), vorCoreData(2)
-          CLOSE(10)
+               OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+               WRITE(10, "(5 A20)")"variable", "x","y","z","sum"
+               WRITE(10, "(A20, 4 ES20.12)") "K", K(1), K(2), K(3), sum(K)
+               WRITE(10, "(A20, 4 ES20.12)") "E", E(1), E(2), E(3), sum(E)
+               WRITE(10, "(A20, 4 ES20.12)") "Umax", Umax(1), Umax(2), Umax(3), sum(Umax)
+               WRITE(10, "(A20, 4 ES20.12)") "Wmax", Wmax(1), Wmax(2), Wmax(3), sum(Wmax)
+               WRITE(10, "(A20, 4 ES20.12)") "vorCore", vorCoreData(1), vorCoreData(2), vorCoreData(3), sum(vorCoreData)
+               WRITE(10, "(A20, ES20.12)") "magUmax", magUmax
+               WRITE(10, "(A20, ES20.12)") "magWmax", magWmax
+               WRITE(10, "(A20, ES20.12)") "H", H 
+               WRITE(10, "(A20, 2 ES20.12)") "min/max Hel", minHel, maxHel
+               CLOSE(10)
+          END IF
+          CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
  
         END SUBROUTINE save_diagnosticFields_global
 
@@ -174,11 +158,12 @@ MODULE data_ops
          !============================================================
          !          SAVE USED PARAMETERS
          !============================================================
-         subroutine saveUsedParams()
+         subroutine saveUsedParams(dir)
             use global_variables
             character(200) :: filename
+            character(len=*) :: dir
             
-            filename = HomeDir//"params"//".dat"
+            filename = dir//"params"//".dat"
 
             if(rank==0) then
                open(10, file = filename, form = 'FORMATTED', status = 'REPLACE')
@@ -195,9 +180,21 @@ MODULE data_ops
                write(10, "(A20, I40)") "bIterOffset", bIterOffset
                write(10, "(A20, I40)") "optimizationIterOffset", optimizationIterOffset
                
+               write(10, "(A20)") " "
+               write(10, "(A20, G40.12)") "qContinuation", qContinuation
+               write(10, "(A20, ES40.12)") "qContStart", qContStart
+               write(10, "(A20, ES40.12)") "qContEnd", qContEnd
+               write(10, "(A20, I40)") "numberOfqValues", numberOfqValues
+               write(10, "(A20, I40)") "bIterRangeStart", bIterRangeStart
+               write(10, "(A20, I40)") "qStartOffset", qStartOffset
+               write(10, "(A20, I40)") "bIterRangeEnd", bIterRangeEnd
+               write(10, "(A20, A200)") "qContNcFileFolder", qContNcFileFolder
+               write(10, "(A20, *(ES40.12))") "qContqValues", qContqValues
+               
+               
                
                write(10, "(A20)") " "
-               write(10, "(A20, G40.12)") "useOrthogonalGradient", useOrthogonalGradient
+               write(10, "(A20, G40.12)") "useTangentialGradient", useTangentialGradient
                write(10, "(A20, G40.12)") "useConjugateGradient", useConjugateGradient
                write(10, "(A20, G40.12)") "useRiemannianGeometry", useRiemannianGeometry
                write(10, "(A20)") " "
@@ -728,33 +725,33 @@ MODULE data_ops
         !==========================================
         ! SAVE OPTIMIZATION RESULT LIST
         !==========================================
-        SUBROUTINE save_to_optimizationResultList(B, J1, iter, optimizationSuccessful)
+        SUBROUTINE save_to_optimizationResultList(B, J1, tempIter, optimizationSuccessful, enstrophy, enstrophy_functional)
          USE global_variables
          IMPLICIT NONE
 
-         real(pr), intent(in) :: B, J1
-         integer :: iter
+         real(pr), intent(in) :: B, J1, enstrophy, enstrophy_functional
+         integer :: tempIter
          logical, intent(in) :: optimizationSuccessful
          CHARACTER(200) :: filename
-         
+         logical :: fileExists
 
          filename = HomeDir//"results_q"//lebesgueQTxt//".dat"
 
-         if(.not.optimizationSuccessful) iter = - iter
+         if(.not.optimizationSuccessful) tempIter = - tempIter
          
          if(rank==0 .and. verboseOptimization) print*, "saving results to ", filename
          
-         if(rank==0) then
-            if(B_list_iterator==bIterOffset+1) then
-               OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-               !WRITE(10,*) "# B  J1 iter"
-               WRITE(10, "(4 G20.12)") "B#", "B", "J1", "iter"
-               close(10)
-            end if
 
-               
-            OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
-            WRITE(10, "(A20, 2 ES20.12, I20)") bIterTxt, B, J1, Iter
+         if(rank==0) then
+
+            inquire(file=filename, exist=fileExists)
+            if (fileExists) then
+               OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
+            else
+               OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
+               WRITE(10, "(6 G20.12)") "B#", "B", "J1", "iter", "enstrophy", "enstrophy_lhs"
+            end if            
+            WRITE(10, "(A20, 2 ES20.12, I20, 2 ES20.12)") bIterTxt, B, J1, tempIter, enstrophy, enstrophy_functional
             CLOSE(10)
          end if
 
@@ -763,14 +760,14 @@ MODULE data_ops
         !==========================================
         !     SAVE OPTIMIZATION DIAGNOSTICS
         !==========================================
-        SUBROUTINE save_diagnostics_optim(myOptimType, iter, tau, beta, J, ener, ens, L2div, dEdt_visc, dEdt_NL, dEdt_Heli)   ! Newly modify April 24, 2017
+        SUBROUTINE save_diagnostics_optim(myOptimType, tempIter, tau, beta, J, ener, ens, L2div, dEdt_visc, dEdt_NL, dEdt_Heli)   ! Newly modify April 24, 2017
           USE global_variables
           IMPLICIT NONE
 
           CHARACTER(len=*), INTENT(IN) :: myOptimType
           REAL(pr), DIMENSION(1:3), INTENT(IN) :: ener, ens
           REAL(pr), INTENT(IN) :: tau, beta, J, L2div, dEdt_visc, dEdt_NL, dEdt_Heli
-          INTEGER, INTENT(IN) :: iter
+          INTEGER, INTENT(IN) :: tempIter
 
           CHARACTER(200) :: filename
           CHARACTER(2) :: K0txt, E0txt, IGtxt
@@ -795,7 +792,7 @@ MODULE data_ops
 
           OPEN(10, FILE = filename, FORM = 'FORMATTED', POSITION = 'APPEND')
           !WRITE(10, "(I5.4, 9 ES20.12)") iter, tau, beta, J, SUM(ener), SUM(ens), L2div, dEdt_visc, dEdt_NL, dEdt_Heli
-          WRITE(10, "(I5.4, 3 ES20.12)") iter, tau, beta, J
+          WRITE(10, "(I5.4, 3 ES20.12)") tempIter, tau, beta, J
           CLOSE(10)
 
         END SUBROUTINE save_diagnostics_optim
@@ -808,7 +805,7 @@ MODULE data_ops
             use mpi
             implicit none
 
-            character(len=:), allocatable :: constParDir
+            character(len=:), allocatable :: constParDir, fileNumberDir
 
 
             !create parent directory
@@ -817,14 +814,23 @@ MODULE data_ops
             call createDirectoryIfNonExistent(constParDir)
 
 
-            if(bIterTxt=="nan") then
-               ! create initial directory
-               ConstraintDir = constParDir//"B000-initial/"
+            if(qContinuation) then
+               fileNumberDir = constParDir//"file"//fileNumberText//"/"
+               call createDirectoryIfNonExistent(fileNumberDir)
+               ConstraintDir = fileNumberDir//"q"//lebesgueQTxt//"/"
+               call createDirectoryIfNonExistent(ConstraintDir)
+
             else
-               !create constraint directory
-               ConstraintDir = constParDir//"B"//bIterTxt//"-"//bTxt//"/"
+               if(bIterTxt=="nan") then
+                  ! create initial directory
+                  ConstraintDir = constParDir//"B000-initial/"
+               else
+                  !create constraint directory
+                  ConstraintDir = constParDir//"B"//bIterTxt//"-"//bTxt//"/"
+               end if
+               call createDirectoryIfNonExistent(ConstraintDir)
+               
             end if
-            call createDirectoryIfNonExistent(ConstraintDir)
             
 
          end subroutine initializeConstraintDirectory
@@ -907,6 +913,97 @@ MODULE data_ops
  
           end subroutine createDirectoryIfNonExistent2
 
+
+         !===========================================================
+         ! get list of files in dir
+         !===========================================================
+         function getListofFilesInDir(directory) result (fileNames)
+            ! from https://stackoverflow.com/a/17981113
+            use mpi
+            use global_variables
+            character(len=*), intent(in) :: directory
+            real :: r
+            integer :: i,reason,NstationFiles,iStation, ierr, stringLength
+            character(len=500), dimension(:), allocatable :: stationFileNames
+            character(len=:), allocatable, dimension(:) :: fileNames
+
+            if(rank==0) then
+               ! get the files
+               call system('ls '//directory//' > myTempFile.txt')
+               open(31,FILE='myTempFile.txt',action="read")
+               !how many
+               i = 0
+               do
+                  read(31,FMT='(a)',iostat=reason) r
+                  if (reason/=0) EXIT
+                  i = i+1
+               end do
+               NstationFiles = i
+               !if(rank==0) print*, "number of files" , NstationFiles
+               allocate(stationFileNames(NstationFiles))
+               rewind(31)
+               do i = 1,NstationFiles
+                  read(31,'(a)') stationFileNames(i)
+               end do
+               close(31)
+               call system('rm myTempFile.txt')
+            end if
+
+
+            call mpi_bcast(NstationFiles, 1, mpi_integer, 0, mpi_comm_world, ierr)
+            
+            if(rank/=0) allocate(stationFileNames(1:NstationFiles))
+            
+            call mpi_bcast(stationFileNames, NstationFiles*500, mpi_character, 0, mpi_comm_world, ierr)
+
+
+            stringLength = 0
+            do i = 1,NstationFiles
+               if(len(trim(stationFileNames(i)))>stringLength) stringLength = len(trim(stationFileNames(i)))
+            end do
+
+            allocate(character(len=stringLength) :: fileNames(NstationFiles))
+
+            do i = 1,NstationFiles
+               fileNames(i) = trim(stationFileNames(i))
+            end do
+
+         end function getListofFilesInDir
+
+         !===========================================================
+         ! get list of files in dir
+         !===========================================================
+         function getListofFilesInDirContainingSearchString(directory, searchstring) result (files)
+            ! from https://stackoverflow.com/a/17981113
+            use mpi
+            use global_variables
+            character(len=*), intent(in) :: directory, searchstring
+            character(len=:), dimension(:), allocatable :: files, tempFiles
+
+            integer :: ii, jj, numberOfResultFiles, stringLength
+            
+            tempFiles = getListofFilesInDir(directory)
+
+            numberOfResultFiles = 0
+            stringLength = 0
+            do ii=1,size(tempFiles)
+               if(index(tempFiles(ii),searchstring)>0) then
+                  numberOfResultFiles = numberOfResultFiles + 1
+                  if(len(trim(tempFiles(ii)))>stringLength) stringLength = len(trim(tempFiles(ii)))
+               end if
+            end do
+
+            allocate(character(len=stringLength) :: files(numberOfResultFiles))
+            jj = 1
+            do ii=1,size(tempFiles)
+               if(index(tempFiles(ii),searchstring)>0) then
+                  files(jj) = trim(tempFiles(ii))
+                  jj = jj + 1
+               end if
+            end do
+            
+
+         end function getListofFilesInDirContainingSearchString
  
         !===========================================================
         ! SAVE POINTS IN PHYSICAL SPACE THAT MAKE THE RINGS
@@ -1302,13 +1399,13 @@ MODULE data_ops
         !============================================
         ! SAVE LINE MINIMIZATION DATA
         !============================================
-        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, mymode)
+        SUBROUTINE save_linemin_data(tA, tB, tC, FA, FB, FC, tempIter, mysystem, mymode)
           USE global_variables
           IMPLICIT NONE
           INCLUDE "mpif.h"
           
           REAL(pr), INTENT(IN) :: tA, tB, tC, FA, FB, FC
-          integer, intent(in) :: iter
+          integer, intent(in) :: tempIter
           CHARACTER(len=*), INTENT(IN) :: mysystem
           CHARACTER(len=*), INTENT(IN) :: mymode
 
@@ -1324,7 +1421,7 @@ MODULE data_ops
 
           IF (rank==0) THEN
 !             filename = "/work/yund0050/MultiObjective_095_01/WEIGHT"//WEIGHTtxt//"_E"//E0txt//"_"//mysystem//"_IG"//IGtxt//"_lineMin_info.dat"
-             if(iter<0) then
+             if(tempIter<0) then
                filename = ConstraintDir//"tau-data/"//"all-J-info-"//optimizationIterationTxt//".dat"
              else
                filename = ConstraintDir//"tau-data/"//"lineMin-info-"//optimizationIterationTxt//".dat"
@@ -1336,7 +1433,7 @@ MODULE data_ops
                CASE ("append")
                 OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
              END SELECT
-             WRITE(10, "(I5.4, 6 ES20.12)") iter, tA, tB, tC, FA, FB, FC
+             WRITE(10, "(I5.4, 6 ES20.12)") tempIter, tA, tB, tC, FA, FB, FC
              CLOSE(10)
           END IF 
           CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)

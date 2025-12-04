@@ -1,63 +1,13 @@
-SUBROUTINE initialize
+subroutine setHostNameAndInputDir
    use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
    USE global_variables
    use mpi
-   IMPLICIT NONE
-   INCLUDE "fftw3-mpi.f03"             ! Needed, as there is a fftw_mpi_local_size_3d command below
 
-   CHARACTER(len=100) :: tempHostName, tempLebesgueQText
-   logical :: hostFound = .false.
-   INTEGER :: i, myIndex, lebesgueQintTemp
+   CHARACTER(len=100) :: tempHostName
+   logical :: hostFound
+   integer :: myIndex
 
-
-   !!! set optim_tol !!!
-   ! original 1.0e-8_pr, me for long time 1.0e-7_pr
-   if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-7_pr
-   else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-6.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-9.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else
-      if(rank==0)print*, "WARNING in initialize, probably not a nice q value"
-      OPTIM_TOL = 1.0e-5_pr
-   end if
-   if(rank==0) print*, "set OPTIM_TOL = ",OPTIM_TOL
-
-
-   !!! setting up how often to save the vector field an spectral data
-   if(resol==256) then
-      save_uvecEveryXiteration = 1000     ! default = 1000
-   elseif(resol==512) then
-      save_uvecEveryXiteration = 100      ! default = 100
-   elseif(resol==1024) then
-      save_uvecEveryXiteration = 50      ! default = 100
-   else
-      save_uvecEveryXiteration = 100      ! default = 100
-   end if
-   save_spectraEveryXiteration = save_uvecEveryXiteration/10       ! default = save_uvecEveryXiteration/10
-
-
-
-   !!! setting up q output text
-   lebesgueQintTemp = nint(lebesgueQ)
-   if(abs(lebesgueQintTemp-lebesgueQ)>MACH_EPSILON) then
-      write (tempLebesgueQText, '(ES9.2)') lebesgueQ
-   else
-      if(lebesgueQ<10.0_pr-MACH_EPSILON) then
-         write (tempLebesgueQText, '(i1)') lebesgueQintTemp
-      elseif(lebesgueQ<100.0_pr-MACH_EPSILON) then
-         write (tempLebesgueQText, '(i2)') lebesgueQintTemp
-      else
-         write (tempLebesgueQText, '(ES9.2)') lebesgueQ
-      end if
-   end if
-   lebesgueQTxt = trim(adjustl(tempLebesgueQText))
-
+   hostFound = .false.
 
    !!! setting up input directory depending on cluster
    call hostnm(tempHostName)
@@ -93,6 +43,101 @@ SUBROUTINE initialize
       inputDir = "/home/fabianbl/projects/def-bprotas/fabianbl/prog/input/"
       if(rank==0) print*, achar(9), "using standard input directory ", inputDir
    end if
+   
+end subroutine
+
+subroutine setLebesgueQtext
+   use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
+   USE global_variables
+   use mpi
+
+   CHARACTER(len=100) :: tempLebesgueQText
+   integer :: lebesgueQintTemp
+
+   !!! setting up q output text
+   lebesgueQintTemp = nint(lebesgueQ)
+   if(abs(lebesgueQintTemp-lebesgueQ)>MACH_EPSILON) then
+      write (tempLebesgueQText, '(ES9.2)') lebesgueQ
+   else
+      if(lebesgueQ<10.0_pr-MACH_EPSILON) then
+         write (tempLebesgueQText, '(i1)') lebesgueQintTemp
+      elseif(lebesgueQ<100.0_pr-MACH_EPSILON) then
+         write (tempLebesgueQText, '(i2)') lebesgueQintTemp
+      else
+         write (tempLebesgueQText, '(ES9.2)') lebesgueQ
+      end if
+   end if
+   lebesgueQTxt = trim(adjustl(tempLebesgueQText))
+
+   
+end subroutine
+
+subroutine setStandardParams
+   use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
+   USE global_variables
+   use mpi
+
+
+   !!! set optim_tol !!!
+   ! original 1.0e-8_pr, me for long time 1.0e-7_pr
+   if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-7_pr
+   else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else if(abs(lebesgueQ-6.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else if(abs(lebesgueQ-9.0_pr)<MACH_EPSILON) then
+      OPTIM_TOL = 1.0e-5_pr
+   else
+      if(rank==0)print*, "WARNING in initialize, probably not a nice q value"
+      OPTIM_TOL = 1.0e-5_pr
+   end if
+   if(rank==0) print*, "set OPTIM_TOL = ",OPTIM_TOL
+
+
+   !!! setting up how often to save the vector field an spectral data
+   if(resol==256) then
+      save_uvecEveryXiteration = 1000     ! default = 1000
+   elseif(resol==512) then
+      save_uvecEveryXiteration = 100      ! default = 100
+   elseif(resol==1024) then
+      save_uvecEveryXiteration = 50      ! default = 100
+   else
+      save_uvecEveryXiteration = 100      ! default = 100
+   end if
+   save_spectraEveryXiteration = save_uvecEveryXiteration/10       ! default = save_uvecEveryXiteration/10
+
+
+
+
+
+   call setLebesgueQtext()
+
+   call setHostNameAndInputDir()
+
+
+   if(use_e_u_auto_for_q_less_4) then
+      if(lebesgueQ<4.0_pr-MACH_EPSILON) then
+         use_e_u_instead_of_uqMinus4 = .true.
+      else
+         use_e_u_instead_of_uqMinus4 = .false.
+      end if
+   end if
+
+end subroutine
+
+
+
+SUBROUTINE initialize
+   use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
+   USE global_variables
+   use mpi
+   IMPLICIT NONE
+   INCLUDE "fftw3-mpi.f03"             ! Needed, as there is a fftw_mpi_local_size_3d command below
+
+   INTEGER :: i
    
 
    !!! setting up fft
@@ -147,14 +192,6 @@ SUBROUTINE initialize
          K3(i+1) = 2.0_pr*PI*REAL(i-n(3),pr)
       END IF
    END DO
-
-   if(use_e_u_auto_for_q_less_4) then
-      if(lebesgueQ<4.0_pr-MACH_EPSILON) then
-         use_e_u_instead_of_uqMinus4 = .true.
-      else
-         use_e_u_instead_of_uqMinus4 = .false.
-      end if
-   end if
    
 
 

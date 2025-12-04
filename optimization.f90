@@ -16,11 +16,12 @@ module optimization
          REAL(pr), DIMENSION(:,:,:),   ALLOCATABLE :: f_scalar
          logical :: optimizationSuccessful
 
-         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, uNorm, alpha, HildertOrderS, gradJ0norm, bestKappa, normGradJused1, normVecTransported_d0, normD1, test1, test2, test3, averageImprovement
+         REAL(pr) :: J0, J1, deltaJ, tau0, tau1, tau0Init, beta, inner, norm, uNorm, alpha, HildertOrderS, gradJ0norm, bestKappa, normGradJused1, normVecTransported_d0, normD1
+         real(pr) :: test1, test2, test3, averageImprovement, global_enstrophy, global_enstrophy_functional
          REAL(pr), DIMENSION(1:2) :: tau_brack
          real(pr), dimension(3) :: testVec, testVec2
 
-         INTEGER :: iter, startIter, gradType, mnbrak_flag, FixConstr_flag, while_flag, mytime, iterationTime, averageTimePerIteration
+         INTEGER :: startIter, gradType, mnbrak_flag, FixConstr_flag, while_flag, mytime, iterationTime, averageTimePerIteration
          integer, dimension(:), allocatable :: timeArray, tempTimeArray
          real(pr), dimension(:), allocatable :: relativImprovementArray
 
@@ -52,7 +53,6 @@ module optimization
          allocate( relativImprovementArray(1:toleranceRollingAverageSize) )
 
          if(rank==0 .and. verboseOptimization) print*, "starting maxdLqdt"
-         call initializeConstraintDirectory
 
          !====================================
          ! rescale to match the potentially changed constraint value
@@ -76,7 +76,7 @@ module optimization
          !======================================================
          if(rank==0 .and. verboseOptimization) print*, "initializing loop variables"
          J0 = eval_J(Uvec, "maxdLqdt")
-         J1 = 0.0_pr
+         J1 = J0
          deltaJ = ABS( (J1-J0)/J0 )                            ! just to have something > OPTIM_TOL
          if(B_list_iterator==bIterOffset+1) then
             startIter = optimizationIterOffset
@@ -104,11 +104,12 @@ module optimization
          ! PRINT INITIAL VALUES
          !===============================
          if(rank==0) print*, iter, "iteration"
-         if(rank==0) print '(7A16, A12, A7, A12, 2A16)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)"
+         if(rank==0) print '(A9,    6A10,    A9,   A6, A7,   A9,   A13, A5, A8,    4A10)', achar(9), "t_bra(a)", "tau used", "t_bra(b)", "J0", "deltaJ", "J1", "lambda1", "q", "bIter", "||u||_q", "n/(|v|+|n|)", "t/i", "av t/i", "||gr J||", "beta", "||t d0||", "||d1||"
          uNorm = calc_global_Lq_norm(Uvec)
          testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
          testVec(1) = abs(testVec(2)) + abs(testVec(3))
-         if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, uNorm, testVec(2)/testVec(1), testVec(3)/testVec(1)
+         if(rank==0) print '(A9, 6ES10.2, ES9.1, F6.3, I7, F9.2, F13.8, I5, I8, 4ES10.2)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, lebesgueQ, B_list_iterator, uNorm, testVec(3)/testVec(1), iterationTime, averageTimePerIteration, normGradJused1, beta, normVecTransported_d0, normD1
+
 
 
          IF (save_diag_Optim) THEN
@@ -194,7 +195,7 @@ module optimization
             !======================================================
             ! Base Descend Direction
             !======================================================
-            if(useOrthogonalGradient) then
+            if(useTangentialGradient) then
                gradJused1(:,:,:,:) = gradJproj(:,:,:,:)
             else
                gradJused1(:,:,:,:) = gradJ1(:,:,:,:)
@@ -413,12 +414,12 @@ module optimization
             !===============================
             ! PRINT RESULTS
             !===============================
-            if(rank==0) print '(7A16, A12, A7, A12, 2A16, 7A12)', achar(9), "tau_brack(a)", "tau used", "tau_brack(b)", "J0", "deltaJ", "J1", "lambda1", "bIter", "||u||_q", "Jv/(|Jv|+|Jn|)", "Jn/(|Jv|+|Jn|)", "sec/iter", "av sec/iter", "||grad J||", "beta", "||vec d0||", "||d1||"
+            if(rank==0) print '(A9,    6A10,    A9,   A6, A7,   A9,   A13, A5, A8,    4A10)', achar(9), "t_bra(a)", "tau used", "t_bra(b)", "J0", "deltaJ", "J1", "lambda1", "q", "bIter", "||u||_q", "n/(|v|+|n|)", "t/i", "av t/i", "||gr J||", "beta", "||t d0||", "||d1||"
             uNorm = calc_global_Lq_norm(Uvec)
             test1 = global_summed_field_inner_product(uvec,d0,"L2")/(sqrt(global_summed_field_inner_product(uvec,uvec,"L2"))*sqrt(global_summed_field_inner_product(d0,d0,"L2")))
             testVec = calc_global_dLqdt_inclParts(uvec, lebesgueQ)
             testVec(1) = abs(testVec(2)) + abs(testVec(3))
-            if(rank==0) print '(A16, 6ES16.7, ES12.3, I7, F12.7, 2F16.7, 2I12, 5ES12.3)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, B_list_iterator, uNorm, testVec(2)/testVec(1), testVec(3)/testVec(1), iterationTime, averageTimePerIteration, normGradJused1, beta, normVecTransported_d0, normD1
+            if(rank==0) print '(A9, 6ES10.2, ES9.1, F6.3, I7, F9.2, F13.8, I5, I8, 4ES10.2)', achar(9), tau_brack(1), tau1, tau_brack(2), J0, deltaJ, J1, lambda1, lebesgueQ, B_list_iterator, uNorm, testVec(3)/testVec(1), iterationTime, averageTimePerIteration, normGradJused1, beta, normVecTransported_d0, normD1
 
 
             !===============================
@@ -451,15 +452,17 @@ module optimization
             end if
             if (kappaTest) then
                !CALL kappa_test(uvec0, gradJ1, "end_gradJ1", "H_l^(3/2-1/q)")
-               CALL kappa_test(uvec0, d1, .true.,"maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
+               CALL kappa_test(uvec0, gradJ1, .true.,"maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)", .true.)
             end if
          else
             optimizationSuccessful = .false.
             if(rank==0) then
                print*, "optimization terminated unsuccessful after ", iter, "iteration", ", max iter = ", MAX_ITER, ", last realtive changes ", relativImprovementArray(:)
             end if
-            CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
-            CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)", .true.)
+            if(kappaTest) then
+               CALL kappa_test(uvec0, d1, .true., "maxdLqdt", "end_d1", "H_l^(3/2-1/q)", .true.)
+               CALL kappa_test(uvec0, gradJ1, .true., "maxdLqdt", "end_gradJ", "H_l^(3/2-1/q)", .true.)
+            end if
          end if
 
 
@@ -481,7 +484,9 @@ module optimization
          !===============================
          ! save results
          !===============================
-         call save_to_optimizationResultList(constraintB, J1, iter, optimizationSuccessful)
+         global_enstrophy = calc_global_summed_enstrophy(Uvec)
+         global_enstrophy_functional = calc_global_dEnstrophydt(uvec)
+         call save_to_optimizationResultList(constraintB, J1, iter, optimizationSuccessful, global_enstrophy, global_enstrophy_functional)
          
          deallocate(uvec0)
          deallocate(gradJ0)
@@ -623,7 +628,7 @@ module optimization
       REAL(pr), PARAMETER :: GLIMIT = 10.0_pr
       REAL(pr), PARAMETER :: tMAX = 10.0_pr
       INTEGER, PARAMETER :: ITMAX = 100       ! maximal iterations in mnbrak method
-      INTEGER :: FuncEval, iter
+      INTEGER :: FuncEval, brakIter
       LOGICAL :: saveLineMin
 
       saveLineMin = .TRUE.
@@ -649,7 +654,7 @@ module optimization
 
 
       FuncEval = 0
-      iter = 0      
+      brakIter = 0      
  
       tA = tA0
       tB = MAX(tB0, MACH_EPSILON)
@@ -663,14 +668,14 @@ module optimization
       FuncEval = FuncEval+1
 
 
-      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "replace")
+      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, brakIter, mysystem, "replace")
 
       DO WHILE (FB > FA .AND. tB > MACH_EPSILON) 
          tB = CGOLD*tB
          phi_bar = phi + tB*grad
          FB = eval_J(phi_bar, "LineMin")
          FuncEval = FuncEval+1
-         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
+         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, brakIter, mysystem, "append")
       END DO
 
       IF (tB .LE. MACH_EPSILON) THEN
@@ -683,10 +688,10 @@ module optimization
       FC = eval_J(phi_bar, "LineMin")
       FuncEval = FuncEval+1
 
-      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
+      IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, brakIter, mysystem, "append")
 
-      DO WHILE (FB>=FC .AND. iter<ITMAX)
-         iter = iter+1
+      DO WHILE (FB>=FC .AND. brakIter<ITMAX)
+         brakIter = brakIter+1
          tC = GOLD*tC
          phi_bar = phi + tC*grad
          FC = eval_J(phi_bar, "LineMin")
@@ -750,14 +755,14 @@ module optimization
          FB = FC
          FC = FP
         
-         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, iter, mysystem, "append")
+         IF (saveLineMin) CALL save_linemin_data(tA, tB, tC, FA, FB, FC, brakIter, mysystem, "append")
  
       END DO
 
       tau_brack(1) = tA
       tau_brack(2) = tC
 
-      IF (iter .GE. ITMAX) THEN
+      IF (brakIter .GE. ITMAX) THEN
          myflag = 2
       ELSE
          myflag = 0

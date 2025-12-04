@@ -6,19 +6,34 @@ MODULE global_variables
 
   !math params!
   real(pr), parameter :: visc = 1.0_pr
+
+  !q continuation!
+  logical :: qContinuation = .false.                      ! false -> normal constraint branch continuation, true -> q continuation for q=4 to 3 limit 
+  character(len=:), allocatable :: qContNcFileFolder
+  character(3) :: fileNumberText = "nan"
+  real(pr), dimension(:), allocatable :: qContqValues     ! lebesgueQ values for the continutation
+  real(pr) :: qContStart, qContEnd                        ! in maxdLqdt: start and end lebesgue q values
+  integer :: numberOfqValues                              ! in maxdLqdt: number of lebesgue q values
+  integer :: qStartOffset                                 ! offset of q value in the beginning, to start in the middle if continuing a previous simulation
+  integer :: fileNumber, qNumber, bIterRangeStart, bIterRangeEnd, tempInt 
+  logical :: tempLogical
+  character(len=:), allocatable :: scratchPath, tempString, fileNameResult, fileNameResByB, fileNameResByQ
+  character(len=:), dimension(:), allocatable :: fileList, fileListTemp
+  real(pr), dimension(:,:), allocatable :: qContinuationResults
+
   
   !opt params!
-  INTEGER, PARAMETER :: MAX_ITER = 99999                   !original 1000 ! Maximal iterations of maxdEdt
-  REAL(pr) :: OPTIM_TOL                                    !now in initialize
+  INTEGER :: MAX_ITER = 99999                             !original 1000 ! Maximal iterations of maxdEdt
+  REAL(pr) :: OPTIM_TOL                                   !now in initialize
   REAL(pr), PARAMETER :: MACH_EPSILON = 2.0e-16_pr
   REAL(pr), PARAMETER :: TAU_MAX = 1.0e2_pr
   integer :: resol                                        ! = 128, 256, 512, 1024, ... automatically when load or in maxdLpdt
   real(pr), save :: lambda1 = 0.1_pr
-  logical :: useOrthogonalGradient = .true.
+  logical :: useTangentialGradient = .true.
   logical :: useConjugateGradient = .true.
   logical :: useRiemannianGeometry = .true.
   integer :: resetMomentumTermEveryXiterations = 25       ! <1 = never
-  integer :: toleranceRollingAverageSize = 1              ! default = 10, <= 1 means no average, just check every timestep if tolerance is achieved 
+  integer :: toleranceRollingAverageSize = 10             ! default = 10, <= 1 means no average, just check every timestep if tolerance is achieved
 
   logical :: normalizeGradient = .true.                   ! default = .true.
   logical :: use_e_u_auto_for_q_less_4 = .true.           ! default = .true. ! automatically use e_u instead of u for q<4 and otherwise don't use e_u
@@ -57,7 +72,8 @@ MODULE global_variables
   integer :: kappaTestEveryXiteration = -1                   ! <1 for never   default = -1
   logical :: normalizeSpectrumByL2Norm = .true.              ! when calculating the spectrum calc ||u||_2^2/sum(spec)*spec instead of just spec   
   integer :: dividingByZeroWarnings = 100                    ! number of warnings when calculating |u|^{-...} where u=0 
-  LOGICAL :: save_diag_fields_values = .false.
+  LOGICAL :: save_diag_scalar_fields = .false.
+  LOGICAL :: save_diag_field_values = .true.
   LOGICAL :: save_diag_Constr = .true.
   LOGICAL :: save_data_Constr = .true.
   LOGICAL :: save_diag_Optim = .true.
@@ -70,7 +86,7 @@ MODULE global_variables
 
   !other params!
   INTEGER, DIMENSION(3), SAVE :: n
-  INTEGER, SAVE :: K0_index, E0_index, NU_index, iguess, ConsType
+  INTEGER, SAVE :: iter, K0_index, E0_index, NU_index, iguess, ConsType
   REAL(pr), SAVE :: E0, K0, PI, dV, Kmax, lebesgueQ
   character(len=:), allocatable :: lebesgueQTxt
   real(pr), dimension(:), allocatable, save :: lebesgueQlist

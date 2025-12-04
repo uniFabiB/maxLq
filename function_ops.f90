@@ -1278,6 +1278,7 @@ module function_ops
 
       end function calc_local_dLqdt_inclParts
 
+
       !=========================================================
       ! Calculate d/dt Lq right hand side in physical space
       !                    local
@@ -1323,6 +1324,82 @@ module function_ops
          call mpi_allreduce(local_result, global_result_R_Rvisc_Rnonlin, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
 
       end function calc_global_dLqdt_inclParts
+
+
+
+      !=========================================================
+      ! Calculate d/dt Enstrophy right hand side in physical space
+      !     calculates the global part
+      !=========================================================
+      ! d/dt E  = - nu ||Delta u||_2^2    + int (u cdot nabla) u cdot Delta u
+      !         =         R_1             +              R_2
+      !         = R
+      !=========================================================
+      function calc_global_dEnstrophydt(u) result (global_result)
+         use global_variables
+         implicit none
+         real(pr) :: R_1, R_2, global_result
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: vort, laplaceU
+         real(pr), dimension(:,:,:), allocatable :: uComponent
+         real(pr), dimension(:,:,:,:), allocatable :: gradUComponent, uDotGrad_u
+         real(pr), dimension(:,:,:,:,:), allocatable :: gradU
+         integer :: ii, jj
+         
+
+         laplaceU = u
+         call laplacian(laplaceU)
+
+         
+         R_1 = - viscCoefficient * visc * global_summed_field_inner_product(laplaceU, laplaceU, "L2")
+         !R_1  = - nu || Delta u ||_2^2
+
+         allocate( uComponent(1:n(1),1:n(2),1:local_N) )
+         allocate( gradUComponent(1:n(1),1:n(2),1:local_N,1:3) )
+         allocate( gradU(1:n(1),1:n(2),1:local_N,1:3,1:3) )
+
+         do ii=1,3
+            uComponent = u(:,:,:,ii)
+            call gradient(uComponent, gradUComponent)
+            do jj=1,3
+               gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
+            end do
+         end do
+
+         deallocate(uComponent)
+         deallocate(gradUComponent)
+         allocate( uDotGrad_u(1:n(1),1:n(2),1:local_N,1:3) )
+
+
+         ! uDotGrad_u = (u cdot nabla) u
+         uDotGrad_u = 0.0_pr
+         do ii=1,3
+            do jj=1,3
+               uDotGrad_u(:,:,:,ii) = uDotGrad_u(:,:,:,ii) + u(:,:,:,jj)*gradU(:,:,:,ii,jj)
+            end do
+         end do
+
+         deallocate(gradU)
+
+         do ii=1,3
+            if(toDealias) then
+               call dealias_scalar(uDotGrad_u(:,:,:,ii),2.0_pr)
+            end if
+         end do
+         
+
+         R_2 = global_summed_field_inner_product(uDotGrad_u, laplaceU, "L2")
+         ! R_2 = int (u cdot nabla) u cdot Delta u
+         ! comes from nonlinearity but don't have nonlinearity coefficient implemented
+
+         deallocate(uDotGrad_u)
+
+         global_result = R_1 + R_2
+
+         if(rank==0) print*, "dEnstrophydt", "-\nu \| Delta u\|_2^2=", R_1, "int (u cdot nabla) u cdot Delta u=", R_2, "dEnstrophydt=", global_result
+
+
+      end function calc_global_dEnstrophydt
 
 
 
@@ -1865,7 +1942,6 @@ module function_ops
             call gradient(uComponent, gradUComponent)
             do jj=1,3
                gradU(:,:,:,ii,jj) = gradUComponent(:,:,:,jj)         ! gradU(:,:,:,ii,jj) = partial_j u_i
-               !uugradu(:,:,:) = uugradu(:,:,:) + u(:,:,:,ii)*u(:,:,:,jj)*gradUComponent(:,:,:,jj)
             end do
          end do
 
@@ -2220,6 +2296,9 @@ module function_ops
 
       !=========================================================
       ! Calculate enstrophy from function in physical space
+      ! CAREFUL !
+      !     ONLY CALCULATES THE LOCAL ONE AND ONLY THE COMPONENTS
+      !     USE calc_global_summed_enstrophy FOR NORMAL ENSTROPHY
       !=========================================================
       FUNCTION Enstrophy(U) RESULT (ens)
          USE global_variables
@@ -2245,6 +2324,30 @@ module function_ops
          END DO
          DEALLOCATE(W)
       END FUNCTION Enstrophy
+
+      !=========================================================
+      ! Calculate global summed enstrophy
+      ! result = 1/2 || omega ||_2^2 = 1/2 || nabla times u ||_2^2
+      !=========================================================
+      function calc_global_summed_enstrophy(u) result (result)
+         use global_variables
+         use mpi
+         
+         implicit none
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:3) :: local_enstrophy_components, global_enstrophy_components
+         real(pr) :: result
+
+         local_enstrophy_components = Enstrophy(u)
+
+         call mpi_allreduce(local_enstrophy_components, global_enstrophy_components, 3, MPI_REAL8, MPI_SUM, MPI_COMM_WORLD, Statinfo)
+         
+         result = sum(global_enstrophy_components)
+
+      end function
+
+      
 
 
 
@@ -2368,12 +2471,10 @@ module function_ops
          allDiagFields(:,:,:,4) = aux
 
 
-         CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore")
 
-         IF (rank==0 .and. save_diag_fields_values) THEN
-            CALL save_diagnosticFields_global("maxdEdt", K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
-         END IF
-         CALL MPI_BARRIER(MPI_COMM_WORLD, Statinfo)
+         if(save_diag_scalar_fields) CALL save_diagnosticScalars(allDiagFields, numDiagFields, "magU,magW,Helicity,VortexCore")
+
+         if(save_diag_field_values) CALL save_diagnosticFields_global(K, E, Umax, Wmax, magUmax, magWmax, H, maxHel, minHel, vorCoreData)
 
          DEALLOCATE( Spectrum )
          DEALLOCATE( aux )
@@ -4373,7 +4474,43 @@ module function_ops
             print*, test(3,2,4,3,:)
             print*, "matrix inversion test end"
          end if
-      END FUNCTION matrixInversion3by3 
+      END FUNCTION matrixInversion3by3
+
+      function getQfromFileName(fileName) result (tempQ)
+         
+         use global_variables
+         implicit none
+         character(len=*), intent(in) :: fileName
+         character(len=:), allocatable :: tempString1, tempString2
+         integer :: startIndex, endIndex
+         real(pr) :: tempQ
+
+         ! extract q value
+         startIndex = index(fileName,'_q')   ! first occurance
+         tempString1 = fileName(startIndex+2:)
+         endIndex = index(tempString1,"_")
+         tempString2 = tempString1(:endIndex-1)
+         read(tempString2,*) tempQ
+   
+      end function getQfromFileName
+
+      function getBiterfromFileName(fileName) result (tempBiter)
+         
+         use global_variables
+         implicit none
+         character(len=*), intent(in) :: fileName
+         character(len=:), allocatable :: tempString1, tempString2
+         integer :: startIndex, endIndex
+         real(pr) :: tempBiter
+
+         ! extract B value
+         startIndex = index(fileName,'_B')   ! first occurance
+         tempString1 = fileName(startIndex+2:)
+         endIndex = index(tempString1,"_")
+         tempString2 = tempString1(:endIndex-1)
+         read(tempString2,*) tempBiter
+   
+      end function getBiterfromFileName
 
 
       subroutine set_q_resol_bIterOffset_optimIterOffsets(fileName)
@@ -4384,11 +4521,7 @@ module function_ops
          integer :: startIndex, endIndex
 
          ! extract lebesgueQ value
-         startIndex = index(fileName,'_q')   ! first occurance
-         tempString1 = fileName(startIndex+2:)
-         endIndex = index(tempString1,"_")
-         tempString2 = tempString1(:endIndex-1)
-         read(tempString2,*) lebesgueQ
+         lebesgueQ = getQfromFileName(fileName)
 
          ! extract resol value
          startIndex = index(fileName,'_n')   ! first occurance
@@ -4397,12 +4530,8 @@ module function_ops
          tempString2 = tempString1(:endIndex-1)
          read(tempString2,*) resol
 
-         ! extract bIterOffset value
-         startIndex = index(fileName,'_B')   ! first occurance
-         tempString1 = fileName(startIndex+2:)
-         endIndex = index(tempString1,"_")
-         tempString2 = tempString1(:endIndex-1)
-         read(tempString2,*) bIterOffset
+
+         bIterOffset = getBiterfromFileName(fileName)
          !!! might be reduced by 1 when optimizationIterOffset if not iterend !!!
 
 

@@ -54,10 +54,10 @@
       ! iguess 9 = load temp &loadTempFunctionName
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
-      iguess = 50
+      iguess = 9
 
       if(iguess==9) then
-         loadTempFunctionName = "u_result_1204_q9_n512_B020_iterend.nc"
+         loadTempFunctionName = "u_result_0303_q9_n1024_B017_iterend.nc"
          standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
 
 
@@ -73,9 +73,9 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 4.0_pr
-         resol = 32
-         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
+         lebesgueQ = 9.0_pr
+         resol = 256
+         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
          loadTempFunctionName = "iguess00"      ! allocate string resources
          write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
          bIterOffset = 0
@@ -86,14 +86,27 @@
 
       call setStandardParams()
 
-      if(.not.standardParams) then
-         qContinuation = .true.
+      if(.not.standardParams)then
+         qContinuation = .false.
          if(qContinuation) then
             !!! q continuation !!!
 
             !!! manual parameters !!!
 
             if(.true.) then
+               !!! 4 to 3 !!!
+               scratchPath = "/home/fabianbl/scratch/"
+               qContNcFileFolder = scratchPath//"8_1024_production/q4/5/output/ncFiles"
+               !qContNcFileFolder = scratchPath//"7_qCont/c_1024_4to3/1/output/ncFiles"
+               numberOfqValues = 2
+               qStartOffset = 0                 ! offset if wanna start for first file at different q. could be since to continue a sim that ended within a file and different q values
+               qContStart = 4.0_pr
+               qContEnd = 3.7_pr
+               bIterRangeStart = -1             ! specify range of used original b values, negative = all
+               bIterRangeEnd = -1
+            end if
+
+            if(.false.) then
                !!! 5 to 4 confirmation !!!
                scratchPath = "/home/fabianbl/scratch/"
                !qContNcFileFolder = scratchPath//"5_beta_512_10-5/q5/1/output/ncFiles"
@@ -151,20 +164,33 @@
          else
             !!! normal constraint continuation !!!
             !!! change parameters for test runs !!!
-            if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
+
+            if(.false.) then
+               if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
+                  save_uvecEveryXiteration = 10
+                  save_dEveryXiteration = 10
+                  save_gradL2EveryXiteration = 10
+                  save_spectraEveryXiteration = 1
+               end if
+            end if
+
+            if(.false.) then
                OPTIM_TOL = 1.0e-6_pr
             end if
 
-            if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
-               save_uvecEveryXiteration = 10
-               save_dEveryXiteration = 10
-               save_gradL2EveryXiteration = 10
-               save_spectraEveryXiteration = 1
+            if(.true.) then
+               !!! overwrite B values !!!
+               allocate( B_list_overwrite(1:32+bIterOffset) )
+               B_list_overwrite(1) = 1.0_pr
+               do B_list_iterator=2,size(B_list_overwrite)
+                  constraintB = B_list_overwrite(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
+                  if(constraintB>240.0_pr) then
+                     constraintB = B_list_overwrite(B_list_iterator-1)*10**(1.0_pr/24.0_pr)
+                  end if
+                  B_list_overwrite(B_list_iterator) = constraintB
+               end do
             end if
-
-            if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
-               OPTIM_TOL = 1.0e-6_pr
-            end if
+            
          end if
       end if
 
@@ -265,6 +291,7 @@
                else
                   lebesgueQ = qContqValues(qNumber)
                end if
+               call set_e_u_or_just_u()
                call setLebesgueQtext()
 
                constraintB = calc_global_Lq_norm(uvec)
@@ -378,9 +405,16 @@
             end do
          end if
 
+         if(.not.standardParams) then
+            if(allocated(B_list_overwrite)) then
+               B_list(:) = B_list_overwrite(:)
+            end if
+         end if
+
          do B_list_iterator=1,size(B_list)
-            if(rank==0) print*, "B",B_list_iterator, "=", B_list(B_list_iterator)
+            if(rank==0) print*, "B", B_list_iterator, "=", B_list(B_list_iterator)
          end do
+
 
 
          !=========================================================

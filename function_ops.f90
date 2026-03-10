@@ -1052,15 +1052,15 @@ module function_ops
       !=========================================================
       ! nabla^L2 R = (q-2)|u|^{q-4} (u cdot (nu Delta u - nabla p)) u
       !              - |u|^{q-2} nabla p
-      !              - 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
+      !              + 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
       !              + nu |u|^{q-2} Delta u + nu Delta (|u|^{q-2}u)
       ! where
       !     Delta^{-1} f is the solution to Delta v = f, int v = 0
       !
       !     nabla (u cdot nabla) (...) = partial_i u_j partial_j (...)
       !
-      !     p = Delta^{-1} (nabla u column nabla u^T)
-      !       = Delta^{-1} (partial_i u_j partial_j u_i)
+      !     p = - Delta^{-1} (nabla u column nabla u^T)
+      !       = - Delta^{-1} (partial_i u_j partial_j u_i)
       !=========================================================
 
       function GradL2ForLq(U) result (V)
@@ -1104,7 +1104,7 @@ module function_ops
 
          call calc_nablaUnablaUt(u, aux)                             ! aux = nabla u : nabla u^T
 
-         call solve_poisson(aux, 1.0_pr, aux_p)                      ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux)
+         call solve_poisson(-aux, 1.0_pr, aux_p)                      ! aux_p = p = - Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (-aux)
          
          call gradient(aux_p, aux_gradP)                             ! aux_gradP = nabla p
 
@@ -1185,19 +1185,19 @@ module function_ops
 
             v(:,:,:,ii) = (lebesgueQ-2.0_pr) * aux3_vec(:,:,:,ii) &
                - pressureCoefficient * aux4_vec(:,:,:,ii) &
-               - pressureCoefficient * 2.0_pr * aux5_vec(:,:,:,ii) &
+               + pressureCoefficient * 2.0_pr * aux5_vec(:,:,:,ii) &
                + viscCoefficient * visc * aux6_vec(:,:,:,ii) &
                + viscCoefficient * visc * aux7_vec(:,:,:,ii) 
 
             ! nabla^L2 R = (q-2)|u|^{q-2} (e_u cdot (nu Delta u - nabla p)) e_u
             !              - |u|^{q-2} nabla p
-            !              - 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
+            !              + 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
 
             ! nabla^L2 R = (q-2)|u|^{q-4} (u cdot (nu Delta u - nabla p)) u
             !              - |u|^{q-2} nabla p
-            !              - 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
+            !              + 2 nabla (u cdot nabla) Delta^{-1} nabla cdot (|u|^{q-2}u)
             !              + nu |u|^{q-2} Delta u
             !              + nu Delta (|u|^{q-2}u)
 
@@ -1215,11 +1215,11 @@ module function_ops
       ! Calculate d/dt Lq right hand side in physical space
       !     THIS ONLY CALCULATES THE LOCAL PART
       !=========================================================
-      ! d/dt Lq = - nu || |u|^((q-2)/2) |nabla u| ||_2^2 - 4(q-2)/q^2 nu ||nabla |u|^(q/2)||_2^2                        + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
-      !         = - nu int |u|^(q-2) |nabla u|^2         - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k   + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
-      !         =                 R_1                    +                              R_2                             +                       R_3
-      !         = R
-      ! p = Delta^{-1} (nabla u cdot nabla u^T)
+      ! 1/q d/dt Lq = - nu || |u|^((q-2)/2) |nabla u| ||_2^2 - 4(q-2)/q^2 nu ||nabla |u|^(q/2)||_2^2                        + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+      !             = - nu int |u|^(q-2) |nabla u|^2         - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k   + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+      !             =                 R_1                    +                              R_2                             +                       R_3
+      !             = R
+      ! p = - Delta^{-1} (nabla u cdot nabla u^T)
       ! returns (/ R, R1+R2, R3 /)  = (/ localResult, viscosityContribution, nonlinearPressureContribution  /)
       !=========================================================
       function calc_local_dLqdt_inclParts(u, q) result (local_result)
@@ -1258,7 +1258,7 @@ module function_ops
          
 
          call calc_nablaUnablaUt(u, aux)                 ! aux = nabla u : nabla u^T
-         call solve_poisson(aux, 1.0_pr, aux_p)          ! aux_p = p = Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (aux2)
+         call solve_poisson(-aux, 1.0_pr, aux_p)         ! aux_p = p = - Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (-aux2)
 
          if(use_e_u_instead_of_uqMinus4) then
             aux(:,:,:) = aux_p(:,:,:)*aux_u_q2(:,:,:)       ! aux = p |u|^(q-2)

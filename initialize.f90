@@ -72,6 +72,19 @@ subroutine setLebesgueQtext
    
 end subroutine
 
+subroutine set_e_u_or_just_u
+   use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
+   USE global_variables
+
+   if(use_e_u_auto_for_q_less_4) then
+      if(lebesgueQ<4.0_pr-MACH_EPSILON) then
+         use_e_u_instead_of_uqMinus4 = .true.
+      else
+         use_e_u_instead_of_uqMinus4 = .false.
+      end if
+   end if
+end subroutine
+
 subroutine setStandardParams
    use, intrinsic :: iso_c_binding     ! Newly Added Jan 17
    USE global_variables
@@ -80,18 +93,9 @@ subroutine setStandardParams
 
    !!! set optim_tol !!!
    ! original 1.0e-8_pr, me for long time 1.0e-7_pr
-   if(abs(lebesgueQ-3.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-7_pr
-   else if(abs(lebesgueQ-4.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-5.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-6.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
-   else if(abs(lebesgueQ-9.0_pr)<MACH_EPSILON) then
-      OPTIM_TOL = 1.0e-5_pr
+   if(resol>=1024) then
+      OPTIM_TOL = 1.0e-4_pr
    else
-      if(rank==0)print*, "WARNING in initialize, probably not a nice q value"
       OPTIM_TOL = 1.0e-5_pr
    end if
    if(rank==0) print*, "set OPTIM_TOL = ",OPTIM_TOL
@@ -118,13 +122,7 @@ subroutine setStandardParams
    call setHostNameAndInputDir()
 
 
-   if(use_e_u_auto_for_q_less_4) then
-      if(lebesgueQ<4.0_pr-MACH_EPSILON) then
-         use_e_u_instead_of_uqMinus4 = .true.
-      else
-         use_e_u_instead_of_uqMinus4 = .false.
-      end if
-   end if
+   call set_e_u_or_just_u()
 
 end subroutine
 

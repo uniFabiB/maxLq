@@ -91,7 +91,7 @@ MODULE global_variables
   character(len=:), allocatable :: lebesgueQTxt
   real(pr), dimension(:), allocatable, save :: lebesgueQlist
   real(pr), dimension(:,:), allocatable :: optimizationResultList
-  real(pr), dimension(:), allocatable :: B_list
+  real(pr), dimension(:), allocatable :: B_list, B_list_overwrite
   integer :: B_list_iterator
   character(3) :: bIterTxt = "nan"
   character(7) :: Btxt

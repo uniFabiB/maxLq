@@ -434,11 +434,12 @@ module optimization
 
 
             relativImprovementArray(2:) = relativImprovementArray(:toleranceRollingAverageSize-1)
-            if(iter == startIter + 1) then
-               relativImprovementArray(2:) = deltaJ
-            end if
-            relativImprovementArray(1) = deltaJ            
-            averageImprovement = sum(relativImprovementArray)/real(toleranceRollingAverageSize,pr)
+            !if(iter == startIter + 1) then
+            !   relativImprovementArray(2:) = deltaJ
+            !end if
+            relativImprovementArray(1) = deltaJ
+            !averageImprovement = sum(relativImprovementArray)/real(toleranceRollingAverageSize,pr)
+            averageImprovement = sum(relativImprovementArray)/real(iter-startIter,pr)
 
          END DO
 

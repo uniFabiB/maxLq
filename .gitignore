@@ -6,7 +6,7 @@ prog
 #directories
 fftwfunctionBackup/
 input/
-output/
+output*/
 temp/
 .git/
 .vscode/

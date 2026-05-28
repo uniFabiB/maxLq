@@ -54,14 +54,16 @@
       ! iguess 9 = load temp &loadTempFunctionName
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
-      iguess = 9
+      
+      standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
 
-      if(iguess==9) then
-         loadTempFunctionName = "u_result_0303_q9_n1024_B017_iterend.nc"
-         standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
+      if(standardParams) then
+         iguess = 9
 
+         loadTempFunctionName = "u_result_0501_q9_n1024_B022_iter00150.nc"
 
          call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
+
          !lebesgueQ = automatically now
          !bIterOffset = automatically now                ! should match the loaded iteration or 0 if new
                                                                   !0 = new optimization
@@ -73,20 +75,59 @@
                                                                   !0 if u_result_B009_iterend.nc
                                                                   !just for documentation how many iterations were needed
       else
-         lebesgueQ = 9.0_pr
-         resol = 256
-         standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
-         loadTempFunctionName = "iguess00"      ! allocate string resources
-         write(loadTempFunctionName, '(A6,I2)') "iguess",iguess
-         bIterOffset = 0
-         optimizationIterOffset = 0
+
+         if (.false.) then
+            if (.true.) then
+               iguess = 50
+               lebesgueQ = 9.0_pr
+               resol = 256
+               bIterOffset = 0
+               optimizationIterOffset = 0
+            end if
+
+            if (.false.) then
+               iguess = 9
+               loadTempFunctionName = "u_result_0424test_q4_n256_B005_iterend.nc"
+               call set_q_resol_bIterOffset_optimIterOffsets(loadTempFunctionName)
+            end if
+
+            !!! overwrite B values !!!
+            allocate( B_list_overwrite(1:17+bIterOffset) )
+            B_list_overwrite(1) = 1.0_pr
+            do B_list_iterator=2,size(B_list_overwrite)
+               constraintB = B_list_overwrite(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
+               B_list_overwrite(B_list_iterator) = constraintB
+            end do
+         end if
+
+
+
+         if (.true.) then
+            iguess = 9
+            loadTempFunctionName = "u_result_q5_n1024_B019_iterend_shifted.nc"
+            lebesgueQ = 5.0_pr
+            resol = 1024
+            bIterOffset = 18
+            optimizationIterOffset = 0
+         end if
+
       end if
+
+
 
       IF (rank==0) print*, "start"
 
       call setStandardParams()
 
       if(.not.standardParams)then
+
+         justCalcResults = .true.
+         if(justCalcResults) then
+            !qValues = [4.0_pr, 5.0_pr, 6.0_pr, 9.0_pr]
+            qValues = [5.0_pr]
+         end if
+
+
          qContinuation = .false.
          if(qContinuation) then
             !!! q continuation !!!
@@ -161,7 +202,11 @@
                qContqValues(B_list_iterator) = qContStart*((qContEnd/qContStart)**(real(B_list_iterator,pr)/real(numberOfqValues, pr)))
             end do
 
-         else
+         end if
+         
+
+         !!! test runs !!!
+         if (.false.) then
             !!! normal constraint continuation !!!
             !!! change parameters for test runs !!!
 
@@ -189,9 +234,10 @@
                   end if
                   B_list_overwrite(B_list_iterator) = constraintB
                end do
-            end if
-            
+            end if            
          end if
+
+         
       end if
 
       !=============================================
@@ -224,8 +270,38 @@
       end if
 
 
+      if(justCalcResults) then
+         !=========================================================
+         ! just calc results and exit ?
+         !=========================================================
+         write(bIterTxt, '(i3.3)') 0
 
-      if(qContinuation) then
+         do B_list_iterator=1,size(qValues)
+            lebesgueQ=qValues(B_list_iterator)
+            call setLebesgueQtext()
+
+            constraintB = calc_global_Lq_norm(uvec)
+            write(bTxt, '(ES7.1)') constraintB
+
+            call initializeConstraintDirectory
+            call saveUsedParams(ConstraintDir)
+
+            !visc = 1.0_pr
+            tempReal1 = eval_J(Uvec, "maxdLqdt")
+            tempReal2 = calc_global_summed_enstrophy(Uvec)
+            !visc = 0.01_pr
+            tempReal3 = calc_global_dEnstrophydt(uvec)
+
+            call save_to_optimizationResultList(constraintB, tempReal1, 0, .false., tempReal2, tempReal3)
+
+            CALL calculateSaveSpectrum(uvec,"uvec")
+
+            call save_field(calc_local_pointwise_dLqdt_inclParts(Uvec,lebesgueQ), "Ru")
+
+         end do
+         
+
+      else if(qContinuation) then
          !=========================================================
          ! q continuation ?
          !=========================================================
@@ -407,6 +483,8 @@
 
          if(.not.standardParams) then
             if(allocated(B_list_overwrite)) then
+               deallocate( B_list )
+               allocate( B_list(1:size(B_list_overwrite)) )
                B_list(:) = B_list_overwrite(:)
             end if
          end if

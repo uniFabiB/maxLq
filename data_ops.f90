@@ -730,14 +730,15 @@ MODULE data_ops
          IMPLICIT NONE
 
          real(pr), intent(in) :: B, J1, enstrophy, enstrophy_functional
-         integer :: tempIter
+         integer, intent(in) :: tempIter
          logical, intent(in) :: optimizationSuccessful
+         integer :: tempIterOut
          CHARACTER(200) :: filename
          logical :: fileExists
 
          filename = HomeDir//"results_q"//lebesgueQTxt//".dat"
 
-         if(.not.optimizationSuccessful) tempIter = - tempIter
+         if(.not.optimizationSuccessful) tempIterOut = - tempIter
          
          if(rank==0 .and. verboseOptimization) print*, "saving results to ", filename
          
@@ -749,9 +750,9 @@ MODULE data_ops
                OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'OLD', POSITION = 'APPEND')
             else
                OPEN(10, FILE = filename, FORM = 'FORMATTED', STATUS = 'REPLACE')
-               WRITE(10, "(6 G20.12)") "B#", "B", "J1", "iter", "enstrophy", "enstrophy_lhs"
+               WRITE(10, "(7 G20.12)") "B#", "B", "J1", "iter", "enstrophy", "enstrophy_lhs", "q"
             end if            
-            WRITE(10, "(A20, 2 ES20.12, I20, 2 ES20.12)") bIterTxt, B, J1, tempIter, enstrophy, enstrophy_functional
+            WRITE(10, "(A20, 2 ES20.12, I20, 3 ES20.12)") bIterTxt, B, J1, tempIterOut, enstrophy, enstrophy_functional, lebesgueQ
             CLOSE(10)
          end if
 

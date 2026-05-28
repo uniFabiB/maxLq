@@ -5,7 +5,7 @@ MODULE global_variables
   INTEGER, PARAMETER :: pr = KIND (0.0d0)
 
   !math params!
-  real(pr), parameter :: visc = 1.0_pr
+  real(pr) :: visc = 1.0_pr
 
   !q continuation!
   logical :: qContinuation = .false.                      ! false -> normal constraint branch continuation, true -> q continuation for q=4 to 3 limit 
@@ -58,6 +58,9 @@ MODULE global_variables
   real(pr) :: checkAverageTolerance = 1.0e-3                ! tolerance such that velocity < checkAverageTolerance*constraintB 
                                                                         !is still be considered average free     
 
+  logical :: justCalcResults = .false.                      ! to just calculate ||u||_q, d/dt ||u||_q^q = R(u), d/dt ||nabla u||_2^2, ... and exit
+  real(pr), dimension(:), allocatable :: qValues     ! lebesgueQ values for the continutation
+
 
   logical :: standardParams
 
@@ -98,6 +101,11 @@ MODULE global_variables
   integer :: bIterOffset
   integer :: optimizationIterOffset
   character(5) :: optimizationIterationTxt = "nan"
+
+  !temp vars!
+  real(pr) :: tempReal1, tempReal2, tempReal3, tempReal4
+  integer :: tempInteger1, tempInteger2, tempInteger3
+  logical :: tempLogical1, tempLogical2
 
   REAL(pr), DIMENSION (:), ALLOCATABLE, SAVE :: K1, K2, K3
   REAL(pr), DIMENSION (:,:,:,:), ALLOCATABLE, SAVE :: Uvec

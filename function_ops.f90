@@ -1215,6 +1215,85 @@ module function_ops
       ! Calculate d/dt Lq right hand side in physical space
       !     THIS ONLY CALCULATES THE LOCAL PART
       !=========================================================
+      ! 1/q d/dt Lq = - nu   |u|^(q-2) |nabla u|^2           - (q-2) nu   |u|^(q-4) u_i partial_j u_i u_k partial_j u_k     + (q-2)   p |u|^(q-4) u cdot (u cdot nabla) u
+      !             =                 R_1                    +                              R_2                             +                       R_3
+      !             = R
+      ! p = - Delta^{-1} (nabla u cdot nabla u^T)
+      ! returns (/ R, R1+R2, R3 /)  = (/ localResult, viscosityContribution, nonlinearPressureContribution  /)
+      !=========================================================
+      function calc_local_pointwise_dLqdt_inclParts(u, q) result (local_result)
+         use global_variables
+         implicit none
+         real(pr) :: q
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: local_result
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3) :: e_u
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: aux_u_q2, aux_p, aux_eegradu, aux_uugradu, aux, aux_u_q4, R_1, R_2, R_3, point_aux1, point_aux2, point_aux3
+         
+
+         call calc_uk(u, q-2.0_pr, aux_u_q2)             ! aux_u_q2 = |u|^(q-2)
+         
+         call calc_nablaModSquared(u, aux)               ! aux = |nabla u|^2
+         
+         !R_1 = - viscCoefficient * visc * inner_product(aux_u_q2, aux, "L2")
+         point_aux1 = calc_uv_scalar(aux_u_q2, aux)
+         R_1(:,:,:) = - viscCoefficient * visc * point_aux1(:,:,:)
+         !R_1  = - nu int |u|^(q-2) |nabla u|^2
+
+         
+
+         e_u = calc_unitVectorInUdirection(u)
+         if(use_e_u_instead_of_uqMinus4) then
+            ! this is the one that somehow makes using e_u much worse !
+            ! all other occurances are not that impactful !
+            aux = calc_vgraduvgradu(u, e_u)                  ! aux = (e_u)_i partial_j u_i (e_u)_k partial_j u_k
+            !R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q2, aux, "L2")
+            point_aux2 = calc_uv_scalar(aux_u_q2, aux)
+            R_2(:,:,:) = - viscCoefficient * (q-2.0_pr) * visc * point_aux2(:,:,:)
+            !R_2 = - (q-2) nu int |u|^(q-2) (e_u)_i partial_j u_i (e_u)_k partial_j u_k
+         else
+            call calc_uk(u, q-4.0_pr, aux_u_q4)             ! aux_u_q4 = |u|^(q-4)
+            aux = calc_vgraduvgradu(u, u)                     ! aux = u_i partial_j u_i u_k partial_j u_k
+            !R_2 = - viscCoefficient * (q-2.0_pr) * visc * inner_product(aux_u_q4, aux, "L2")
+            point_aux2 = calc_uv_scalar(aux_u_q4, aux)
+            R_2(:,:,:) = - viscCoefficient * (q-2.0_pr) * visc * point_aux2(:,:,:)
+            !R_2 = - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k
+         end if
+         
+         
+
+         call calc_nablaUnablaUt(u, aux)                 ! aux = nabla u : nabla u^T
+         call solve_poisson(-aux, 1.0_pr, aux_p)         ! aux_p = p = - Delta^{-1} (nabla u : nabla u^T) = Delta^{-1} (-aux2)
+
+         if(use_e_u_instead_of_uqMinus4) then
+            aux(:,:,:) = aux_p(:,:,:)*aux_u_q2(:,:,:)       ! aux = p |u|^(q-2)
+            if (toDealias) call dealias_scalar(aux, 2.0_pr)
+            aux_eegradu = calc_vvgradu(u, e_u)              ! aux_eegradu = e_u (e_u cdot nabla) u
+            !R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_eegradu, "L2")
+            point_aux3 = calc_uv_scalar(aux, aux_eegradu)
+            R_3(:,:,:) = pressureCoefficient * (q-2.0_pr) * point_aux3(:,:,:)
+            ! R_3  = (q-2) int p |u|^(q-2) e_u cdot (e_u cdot nabla) u
+         else
+            aux(:,:,:) = aux_p(:,:,:)*aux_u_q4(:,:,:)       ! aux = p |u|^(q-4)
+            if (toDealias) call dealias_scalar(aux, 2.0_pr)
+            aux_uugradu = calc_vvgradu(u,u)                 ! aux_uugradu = u cdot (u cdot nabla) u
+            !R_3 = pressureCoefficient * (q-2.0_pr)*inner_product(aux, aux_uugradu, "L2")
+            point_aux3 = calc_uv_scalar(aux, aux_uugradu)
+            R_3(:,:,:) = pressureCoefficient * (q-2.0_pr) * point_aux3(:,:,:)
+            !R_3  = (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
+         end if
+
+         !local_result = (/R_1 + R_2 + R_3, R_1+R_2, R_3/)
+         local_result(:,:,:,1) = R_1(:,:,:) + R_2(:,:,:) + R_3(:,:,:)
+         local_result(:,:,:,2) = R_1(:,:,:) + R_2(:,:,:)
+         local_result(:,:,:,3) = R_3(:,:,:)
+
+      end function calc_local_pointwise_dLqdt_inclParts
+
+      !=========================================================
+      ! Calculate d/dt Lq right hand side in physical space
+      !     THIS ONLY CALCULATES THE LOCAL PART
+      !=========================================================
       ! 1/q d/dt Lq = - nu || |u|^((q-2)/2) |nabla u| ||_2^2 - 4(q-2)/q^2 nu ||nabla |u|^(q/2)||_2^2                        + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
       !             = - nu int |u|^(q-2) |nabla u|^2         - (q-2) nu int |u|^(q-4) u_i partial_j u_i u_k partial_j u_k   + (q-2) int p |u|^(q-4) u cdot (u cdot nabla) u
       !             =                 R_1                    +                              R_2                             +                       R_3
@@ -1983,6 +2062,46 @@ module function_ops
 
 
       end function calc_vvgradu
+         
+      !=========================================================
+      ! Calculate u * v -> res
+      !=========================================================
+      function calc_uv_scalar(u, v) result (res)
+         use global_variables
+         implicit none
+
+         real(pr), dimension(1:n(1),1:n(2),1:local_n), intent(in) :: u, v
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: res
+         res(:,:,:) = u(:,:,:)*v(:,:,:)
+
+         if(toDealias) then
+            call dealias_scalar(res(:,:,:),2.0_pr)
+         end if
+
+      end function calc_uv_scalar
+
+      !=========================================================
+      ! Calculate u cdot v -> res
+      !=========================================================
+      function calc_uv_vector(u, v) result (res)
+         use global_variables
+         implicit none
+
+         real(pr) :: k
+         real(pr), dimension(1:n(1),1:n(2),1:local_n,1:3), intent(in) :: u, v
+         real(pr), dimension(1:n(1),1:n(2),1:local_n) :: res
+
+         integer :: ii, jj
+         
+         res = 0.0_pr
+         do jj=1,3
+            res(:,:,:) = res(:,:,:) + u(:,:,:,jj)*v(:,:,:,jj)
+         end do
+
+         if(toDealias) then
+            call dealias_scalar(res(:,:,:),2.0_pr)
+         end if
+      end function calc_uv_vector
 
 
       !=========================================================

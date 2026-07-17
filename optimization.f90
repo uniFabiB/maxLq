@@ -130,6 +130,9 @@ module optimization
          mytime = time()
          allocate( timeArray(0) )
 
+         !=========================================================
+         ! OPTIMIZATION LOOP
+         !=========================================================
          DO WHILE ( (ABS(averageImprovement) > OPTIM_TOL) .AND. (iter<MAX_ITER) .AND. (while_flag<1) )
             iter = iter + 1
             write(optimizationIterationTxt, '(i5.5)') iter

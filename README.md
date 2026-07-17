@@ -29,7 +29,7 @@ to continue a previous branching procedure
       end if
 </pre>
 
-### 2. Compiling
+### <h3 id="compilingHeader">2. Compiling</h3>
 `make`
 
 ### 3. Copy to Scratch
@@ -51,11 +51,46 @@ srun prog
 ### 5. Submit
 `sbatch run.sh`
 
+## Special Usage
+### Q-Continuation
+For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
+<pre>
+standardParams = .false.`
+...
+qContinuation = .true.`
+...
+scratchPath = "/home/MYUSERNAME/scratch/"
+qContNcFileFolder = scratchPath//"8_1024_production/q4/5/output/ncFiles"
+numberOfqValues = 2
+qStartOffset = 0                 ! offset if wanna start for first file at different q. could be since to continue a sim that ended within a file and different q values
+qContStart = 4.0_pr
+qContEnd = 3.7_pr
+bIterRangeStart = -1             ! specify range of used original b values, negative = all
+bIterRangeEnd = -1
+</pre>
+then [continue like normal](compilingHeader)
+
+### Special $B$ values
+For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
+<pre>
+standardParams = .false.`
+...
+!!! overwrite B values !!!
+allocate( B_list_overwrite(1:17+bIterOffset) )
+B_list_overwrite(1) = 1.0_pr
+do B_list_iterator=2,size(B_list_overwrite)
+    constraintB = B_list_overwrite(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
+    B_list_overwrite(B_list_iterator) = constraintB
+end do
+</pre>
+then [continue like normal](compilingHeader)
 
 
 
-# File Structure
-## Fortran layout
+
+            
+
+# Fortran File Structure
 ```
 maxLq/
 ├── maxdLpdt.f90          // main program: define vars, startup, ...
@@ -120,3 +155,4 @@ until |R(u_{k+1}) − R(u_k)| / |R(u_k)| < ε
 
 return u_{k+1}
 </pre>
+

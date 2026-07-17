@@ -160,8 +160,8 @@ bIterRangeEnd = -1
 </pre>
 then continue [compiling like usual](#2-compiling)
 
-### Special $B$ values
-If one wants to use *exotic* $B$ values one can overwrite them like so without changing the default things
+### Special Constraint values
+For using different $B$ values over them without changing the default behaviour by configuring `maxdLpdt.f90`
 <pre>
 standardParams = .false.
 ...

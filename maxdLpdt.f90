@@ -102,7 +102,7 @@
 
 
 
-         if (.true.) then
+         if (.false.) then
             iguess = 9
             loadTempFunctionName = "u_result_q5_n1024_B019_iterend_shifted.nc"
             lebesgueQ = 5.0_pr

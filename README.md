@@ -24,9 +24,9 @@ Continuation approach used to compute branches of local maximizers $u_B^e$ for i
 
 - $q$ — <span style="color:teal">lebesgueQ (def in maxdLpdt.f90/main)</span> — Exponent of the Lebesgue space of interest
 - $u_{\text{init}}$ — <span style="color:teal">uvec (set by function_ops.f90/initial_guess)</span> — Initial guess corresponding to the small-data limit 
-- $B_{\text{init}}$ — <span style="color:teal"> B_list (maxdLpdt.f90/main)</span> — Initial value for the constraint parameter
-- $B_{\max}$ — <span style="color:teal"> B_list (maxdLpdt.f90/main)</span> — Maximum value for the constraint parameter
-- $\delta B$ — <span style="color:teal"> B_list (maxdLpdt.f90/main)</span> — Increment of the constraint parameter
+- $B_{\text{init}}$ — <span style="color:teal"> B_list(1) (maxdLpdt.f90/main)</span> — Initial value for the constraint parameter
+- $B_{\max}$ — <span style="color:teal"> B_list(size(B_list)) (maxdLpdt.f90/main)</span> — Maximum value for the constraint parameter
+- $\delta B$ — <span style="color:teal"> see B_list (maxdLpdt.f90/main)</span> — Increment of the constraint parameter
 - $\epsilon$ — <span style="color:teal">OPTIM_TOL (automatically initialize.f90/setStandardParams)</span> — Convergence tolerance
 
 ## Output
@@ -42,7 +42,7 @@ B ← B_init
 u0 ← u_init
 repeat                                            <span style="color:teal">// maxdLpdt.f90/main (MAIN LOOP)</span>
     u_B^e ← SolveProblemHilbert(q, B, u0, ε)      <span style="color:teal">// maxdLpdt.f90/call maxdLqdt → optimization.f90/maxdLqdt </span>
-    Evaluate R(u_B^e)                             <span style="color:teal">// calculated in optimization.f90/J1 = eval_Jcall </span>
+    Evaluate R(u_B^e)                             <span style="color:teal">// calculated in optimization.f90/ J1 = eval_J</span>
                                                   <span style="color:teal">// saved in save_to_optimizationResultList → data_ops.f90/save_... </span>
     u0 ← u_B^e                                    <span style="color:grey">// Branch continuation with prev max</span>
     B ← B(1 + δB)                                 <span style="color:grey">// Increase constraint value</span>

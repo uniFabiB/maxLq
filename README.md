@@ -1,6 +1,7 @@
 
 # Usage
 ## Normal Use
+### 1. Configure Run
 For the first run change `maxdLdpdt.f90` to
 <pre>
       standardParams = .false.
@@ -27,6 +28,30 @@ to continue a previous branching procedure
         ...
       end if
 </pre>
+
+### 2. Compiling
+`make`
+
+### 3. Copy to Scratch
+`cp prog ~/scratch/.../path/to/runFolder`
+
+### 4. Configure Slurm File
+create a `run.sh` file in `~/scratch/.../path/to/runFolder` with content like
+```
+#!/bin/bash
+#SBATCH --account=rrg-aeinstein             # or def-aeinstein
+#SBATCH --ntasks=128                        # best on nibi for 1024^3
+#SBATCH --mem-per-cpu=12000M                # fine for 1024^3
+#SBATCH --nodes=1
+#SBATCH --time=7-00:00:00
+#SBATCH --mail-user=my@email.address        # if you want to get notified about the run
+#SBATCH --mail-type=begin,end,fail
+srun prog
+```
+### 5. Submit
+`sbatch run.sh`
+
+
 
 
 # File Structure

@@ -497,6 +497,7 @@
 
          !=========================================================
          ! Loop over different values of constraint B values
+         ! MAIN LOOP
          !=========================================================
          do B_list_iterator = 1+bIterOffset,size(B_list)
             constraintB = B_list(B_list_iterator)

@@ -33,7 +33,7 @@ maxLq/
 
 # Algorithm Explanation
 
-See also the [full algorithm on p. 23 of arXiv:2607.02739v1](https://arxiv.org/pdf/2607.02739v1#page=23) for more definitions.
+See also the [full algorithm on p. 23 of arXiv:2607.02739v1](https://arxiv.org/pdf/2607.02739v1#algocf.1) for more definitions.
 
 Continuation approach used to compute branches of local maximizers $u_B^e$ for increasing values of the constraint parameter $B$.
 

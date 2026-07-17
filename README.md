@@ -1,5 +1,24 @@
 This is the repo for the code of [arXiv:2607.02739](https://arxiv.org/abs/2607.02739)
 
+
+## Table of Contents
+- [Fortran File Structure](#fortran-file-structure)
+- [Algorithm Explanation](#algorithm-explanation)
+  - [Input](#input)
+  - [Output](#output)
+  - [Function `MainBranching()`](#function-mainbranching)
+  - [Function `SolveProblemHilbert(q, B, u0, ε)`](#function-solveproblemhilbertq-b-u0-ε--optimizationf90maxdlqdt)
+- [Usage](#usage)
+  - [Normal Use](#normal-use)
+    - [1. Configure Run](#1-configure-run)
+    - [2. Compiling](#2-compiling)
+    - [3. Copy to Scratch](#3-copy-to-scratch)
+    - [4. Configure Slurm File](#4-configure-slurm-file)
+    - [5. Submit](#5-submit)
+  - [Special Usage](#special-usage)
+    - [Q-Continuation](#q-continuation)
+    - [Special $B$ values](#special-b-values)
+
 # Fortran File Structure
 ```
 maxLq/
@@ -35,7 +54,7 @@ Continuation approach used to compute branches of local maximizers $u_B^e$ for i
 - $R(u_B^e)$ — <span style="color:teal"> ./output/results_qX.dat</span> — objective functional values
 for $B_{\text{init}} \le B \le B_{\max}$
 
-## Function `MainBranch()`
+## Function `MainBranching()`
 
 <pre>
 B ← B_init

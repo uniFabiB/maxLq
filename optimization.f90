@@ -338,7 +338,7 @@ module optimization
             !if(iter == 1 .and. kappaTest) call kappa_test(uvec, d1, .true., "maxdLqdt", "start_d1", "H_l^(3/2-1/q)", .true.)
 
             !======================================
-            ! update u
+            ! UPDATE U
             !======================================
             if(rank==0 .and. verboseOptimization) print*, "update u"
             uvec0 = uvec

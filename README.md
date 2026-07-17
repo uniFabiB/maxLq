@@ -37,7 +37,7 @@ See also the [full algorithm on p. 23 of arXiv:2607.02739v1](https://arxiv.org/p
 
 Continuation approach used to compute branches of local maximizers $u_B^e$ for increasing values of the constraint parameter $B$.
 
-<span style="color:teal">The corresponding Fortran variables, functions, explanations are colored</span>
+<span style="color:teal">The corresponding Fortran variables, functions, explanations are colored in this readme (not visible on github)</span>
 
 ## Input
 

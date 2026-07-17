@@ -55,7 +55,7 @@
       ! iguess 50 = Arnold-Beltrami-Childress, ...
       !=============================================
       
-      standardParams = .false.                         ! use the standard parameters values or is it a test run with strange parameters
+      standardParams = .true.                         ! use the standard parameters values or is it a test run with strange parameters
 
       if(standardParams) then
          iguess = 9

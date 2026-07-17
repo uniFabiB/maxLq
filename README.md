@@ -1,4 +1,4 @@
-           
+This is the repo for the code of [arXiv:2607.02739](https://arxiv.org/abs/2607.02739)
 
 # Fortran File Structure
 ```
@@ -137,7 +137,7 @@ qContEnd = 3.7_pr
 bIterRangeStart = -1             ! specify range of used original b values, negative = all
 bIterRangeEnd = -1
 </pre>
-then [continue like normal](#2-compiling)
+then continue [compiling like usual](#2-compiling)
 
 ### Special $B$ values
 For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
@@ -152,8 +152,4 @@ do B_list_iterator=2,size(B_list_overwrite)
     B_list_overwrite(B_list_iterator) = constraintB
 end do
 </pre>
-then [continue like normal](#2-compiling)
-
-
-
-
+then continue [compiling like usual](#2-compiling)

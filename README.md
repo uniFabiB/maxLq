@@ -29,7 +29,7 @@ to continue a previous branching procedure
       end if
 </pre>
 
-### <h3 id="#compilingHeader">2. Compiling</h3>
+### 2. Compiling
 `make`
 
 ### 3. Copy to Scratch
@@ -68,7 +68,7 @@ qContEnd = 3.7_pr
 bIterRangeStart = -1             ! specify range of used original b values, negative = all
 bIterRangeEnd = -1
 </pre>
-then [continue like normal](#compilingHeader)
+then [continue like normal](#2-compiling)
 
 ### Special $B$ values
 For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
@@ -83,7 +83,7 @@ do B_list_iterator=2,size(B_list_overwrite)
     B_list_overwrite(B_list_iterator) = constraintB
 end do
 </pre>
-then [continue like normal](#compilingHeader)
+then [continue like normal](#2-compiling)
 
 
 

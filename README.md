@@ -9,7 +9,7 @@ maxLq/
 ├── function_ops.f90      // math functions: R(u), nabla u, Delta^{-1} u, ...
 ├── global_variables.f90  // shared variables
 ├── fftwfunction.f90      // fftw3-mpi wrapper
-├── data_ops.f90          // data import/export
+└── data_ops.f90          // data import/export
 ```
 
 # Algorithm Explanation
@@ -28,10 +28,11 @@ Continuation approach used to compute branches of local maximizers $u_B^e$ for i
 - $B_{\max}$ — <span style="color:teal"> B_list (maxdLpdt.f90/main)</span> — Maximum value for the constraint parameter
 - $\delta B$ — <span style="color:teal"> B_list (maxdLpdt.f90/main)</span> — Increment of the constraint parameter
 - $\epsilon$ — <span style="color:teal">OPTIM_TOL (automatically initialize.f90/setStandardParams)</span> — Convergence tolerance
+
 ## Output
 
-- $u_B^e$ — extreme states
-- $R(u_B^e)$ — objective functional values
+- $u_B^e$ — <span style="color:teal"> ./output/ncFiles/xyz.nc</span> — extreme states
+- $R(u_B^e)$ — <span style="color:teal"> ./output/results_qX.dat</span> — objective functional values
 for $B_{\text{init}} \le B \le B_{\max}$
 
 ## Function `MainBranch()`
@@ -71,7 +72,7 @@ return u_{k+1}
 # Usage
 ## Normal Use
 ### 1. Configure Run
-For the first run change `maxdLdpdt.f90` to
+For the first run change `maxdLpdt.f90` to
 <pre>
       standardParams = .false.
 
@@ -122,11 +123,11 @@ srun prog
 
 ## Special Usage
 ### Q-Continuation
-For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
+For q continuation $q=4\to q=3.7$ configure `maxdLpdt.f90`
 <pre>
-standardParams = .false.`
+standardParams = .false.
 ...
-qContinuation = .true.`
+qContinuation = .true.
 ...
 scratchPath = "/home/MYUSERNAME/scratch/"
 qContNcFileFolder = scratchPath//"8_1024_production/q4/5/output/ncFiles"
@@ -136,13 +137,14 @@ qContStart = 4.0_pr
 qContEnd = 3.7_pr
 bIterRangeStart = -1             ! specify range of used original b values, negative = all
 bIterRangeEnd = -1
+...
 </pre>
 then continue [compiling like usual](#2-compiling)
 
 ### Special $B$ values
-For q continuation $q=4\to q=3.7$ configure `maxdLdpdt.f90`
+If one wants to use *exotic* $B$ values one can overwrite them like so without changing the default things
 <pre>
-standardParams = .false.`
+standardParams = .false.
 ...
 !!! overwrite B values !!!
 allocate( B_list_overwrite(1:17+bIterOffset) )
@@ -151,5 +153,6 @@ do B_list_iterator=2,size(B_list_overwrite)
     constraintB = B_list_overwrite(B_list_iterator-1)*10**(1.0_pr/8.0_pr)
     B_list_overwrite(B_list_iterator) = constraintB
 end do
+...
 </pre>
 then continue [compiling like usual](#2-compiling)

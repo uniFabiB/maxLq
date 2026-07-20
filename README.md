@@ -17,7 +17,7 @@ This is the repo for the code of [arXiv:2607.02739](https://arxiv.org/abs/2607.0
     - [5. Submit](#5-submit)
   - [Special Usage](#special-usage)
     - [Q-Continuation](#q-continuation)
-    - [Special $B$ values](#special-b-values)
+    - [Special B values](#special-b-values)
 
 # Fortran File Structure
 ```
